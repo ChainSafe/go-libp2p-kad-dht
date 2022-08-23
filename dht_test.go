@@ -1298,7 +1298,10 @@ func TestClientModeConnect(t *testing.T) {
 
 	c := testCaseCids[0]
 	p := peer.ID("TestPeer")
-	a.ProviderStore().AddProvider(ctx, c.Hash(), peer.AddrInfo{ID: p})
+	err := a.ProviderStore().AddProvider(ctx, c.Hash(), peer.AddrInfo{ID: p})
+	if err != nil {
+		t.Fatal(err)
+	}
 	time.Sleep(time.Millisecond * 5) // just in case...
 
 	provs, err := b.FindProviders(ctx, c)

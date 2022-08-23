@@ -12,7 +12,7 @@ import (
 	peerstore "github.com/libp2p/go-libp2p-core/peerstore"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	test "github.com/libp2p/go-libp2p-kad-dht/internal/testing"
-	record "github.com/libp2p/go-libp2p-record"
+	record "github.com/libp2p/go-libp2p-record" //nolint:typecheck
 	bhost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	swarmt "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/multiformats/go-multiaddr"

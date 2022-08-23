@@ -13,6 +13,7 @@ import (
 
 // KeyKadID contains the Kademlia key in string and binary form.
 type KeyKadID struct {
+	// TODO: do we need to save the raw key here, or is just having the hash ok?
 	Key string
 	Kad kbucket.ID
 }

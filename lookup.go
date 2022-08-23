@@ -11,7 +11,7 @@ import (
 	kb "github.com/libp2p/go-libp2p-kbucket"
 )
 
-// GetClosestPeers is a Kademlia 'node lookup' operation. Returns a channel of
+// GetClosestPeers is a Kademlia 'node lookup' operation. Returns a list of
 // the K closest peers to the given key.
 //
 // If the context is canceled, this function will return the context error along
@@ -20,6 +20,7 @@ func (dht *IpfsDHT) GetClosestPeers(ctx context.Context, key string) ([]peer.ID,
 	if key == "" {
 		return nil, fmt.Errorf("can't lookup empty key")
 	}
+
 	//TODO: I can break the interface! return []peer.ID
 	lookupRes, err := dht.runLookupWithFollowup(ctx, key,
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
@@ -29,7 +30,7 @@ func (dht *IpfsDHT) GetClosestPeers(ctx context.Context, key string) ([]peer.ID,
 				ID:   p,
 			})
 
-			peers, err := dht.protoMessenger.GetClosestPeers(ctx, p, peer.ID(key))
+			peers, err := dht.protoMessenger.GetClosestPeers(ctx, p, peer.ID(key)) // TODO do we want to hash peers before lookup?
 			if err != nil {
 				logger.Debugf("error getting closer peers: %s", err)
 				return nil, err

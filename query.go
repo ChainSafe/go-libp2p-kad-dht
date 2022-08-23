@@ -32,6 +32,9 @@ type query struct {
 	// target key for the lookup
 	key string
 
+	// sha256 hash of the target key
+	keyHash Hash
+
 	// the query context.
 	ctx context.Context
 
@@ -147,8 +150,8 @@ processFollowUp:
 
 func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// pick the K closest peers to the key in our Routing table.
-	targetKadID := kb.ConvertKey(target)
-	seedPeers := dht.routingTable.NearestPeers(targetKadID, dht.bucketSize)
+	//targetKadID := kb.ConvertKey(target) // this sha256 hashes `target`, TODO remove as target will already be hashed
+	seedPeers := dht.routingTable.NearestPeers(kb.ID(target[:]), dht.bucketSize)
 	if len(seedPeers) == 0 {
 		routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 			Type:  routing.QueryError,
@@ -157,12 +160,14 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		return nil, kb.ErrLookupFailure
 	}
 
+	keyHash := sha256Hash([]byte(target))
 	q := &query{
 		id:         uuid.New(),
 		key:        target,
+		keyHash:    keyHash,
 		ctx:        ctx,
 		dht:        dht,
-		queryPeers: qpeerset.NewQueryPeerset(target),
+		queryPeers: qpeerset.NewQueryPeerset(keyHash[:]), // TODO: does this need to be hashed?
 		seedPeers:  seedPeers,
 		peerTimes:  make(map[peer.ID]time.Duration),
 		terminated: false,
@@ -177,7 +182,7 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		q.recordValuablePeers()
 	}
 
-	res := q.constructLookupResult(targetKadID)
+	res := q.constructLookupResult(kb.ID(target[:]))
 	return res, nil
 }
 
@@ -307,7 +312,7 @@ func (q *query) spawnQuery(ctx context.Context, cause peer.ID, queryPeer peer.ID
 		NewLookupEvent(
 			q.dht.self,
 			q.id,
-			q.key,
+			string(q.key[:]), // TODO this was originally the raw key
 			NewLookupUpdateEvent(
 				cause,
 				q.queryPeers.GetReferrer(queryPeer),
@@ -377,7 +382,7 @@ func (q *query) terminate(ctx context.Context, cancel context.CancelFunc, reason
 		NewLookupEvent(
 			q.dht.self,
 			q.id,
-			q.key,
+			string(q.key[:]),
 			nil,
 			nil,
 			NewLookupTerminateEvent(reason),
@@ -435,7 +440,7 @@ func (q *query) queryPeer(ctx context.Context, ch chan<- *queryUpdate, p peer.ID
 		//
 		// add the next peer to the query if matches the query target even if it would otherwise fail the query filter
 		// TODO: this behavior is really specific to how FindPeer works and not GetClosestPeers or any other function
-		isTarget := string(next.ID) == q.key
+		isTarget := string(next.ID) == q.key // TODO: wait what? what is happening here? is this only for the case where the key is a peer ID?
 		if isTarget || q.dht.queryPeerFilter(q.dht, *next) {
 			q.dht.maybeAddAddrs(next.ID, next.Addrs, pstore.TempAddrTTL)
 			saw = append(saw, next.ID)

@@ -275,7 +275,9 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 
 	logger.Debugw("finding value", "key", internal.LoggableRecordKeyString(key))
 
-	if rec, err := dht.getLocal(ctx, key); rec != nil && err == nil {
+	keyHash := sha256Hash([]byte(key))
+
+	if rec, err := dht.getLocal(ctx, string(keyHash[:])); rec != nil && err == nil {
 		select {
 		case valCh <- recvdVal{
 			Val:  rec.GetValue(),
@@ -296,7 +298,7 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 					ID:   p,
 				})
 
-				rec, peers, err := dht.protoMessenger.GetValue(ctx, p, key)
+				rec, peers, err := dht.protoMessenger.GetValue(ctx, p, string(keyHash[:]))
 				if err != nil {
 					return nil, err
 				}
@@ -351,6 +353,7 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 		lookupResCh <- lookupRes
 
 		if ctx.Err() == nil {
+			// TODO: what is this doing
 			dht.refreshRTIfNoShortcut(kb.ConvertKey(key), lookupRes)
 		}
 	}()
@@ -380,7 +383,10 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH))
 
 	// add self locally
-	dht.providerStore.AddProvider(ctx, keyMH, peer.AddrInfo{ID: dht.self})
+	err = dht.providerStore.AddProvider(ctx, keyMH, peer.AddrInfo{ID: dht.self})
+	if err != nil {
+		return err
+	}
 	if !brdcst {
 		return nil
 	}
@@ -486,6 +492,9 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	findAll := count == 0
 
+	// TODO: hash multihash here
+	keyHash := sha256Multihash([]byte(key))
+
 	ps := make(map[peer.ID]struct{})
 	psLock := &sync.Mutex{}
 	psTryAdd := func(p peer.ID) bool {
@@ -504,7 +513,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		return len(ps)
 	}
 
-	provs, err := dht.providerStore.GetProviders(ctx, key)
+	provs, err := dht.providerStore.GetProviders(ctx, keyHash[:])
 	if err != nil {
 		return
 	}
@@ -533,7 +542,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				ID:   p,
 			})
 
-			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, key)
+			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, multihash.Multihash(keyHash[:])) // TODO: this isn't actually a multihash, change GetProvider param type instead?
 			if err != nil {
 				return nil, err
 			}
@@ -576,6 +585,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	)
 
 	if err == nil && ctx.Err() == nil {
+		// TODO this hashes the key also, check what this fn is doing
 		dht.refreshRTIfNoShortcut(kb.ConvertKey(string(key)), lookupRes)
 	}
 }
@@ -592,6 +602,8 @@ func (dht *IpfsDHT) FindPeer(ctx context.Context, id peer.ID) (_ peer.AddrInfo, 
 	if pi := dht.FindLocal(id); pi.ID != "" {
 		return pi, nil
 	}
+
+	// TODO: do we want to hash peer ID before lookup?
 
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(id),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
