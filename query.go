@@ -151,7 +151,9 @@ processFollowUp:
 func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// pick the K closest peers to the key in our Routing table.
 	//targetKadID := kb.ConvertKey(target) // this sha256 hashes `target`, TODO remove as target will already be hashed
-	seedPeers := dht.routingTable.NearestPeers(kb.ID(target[:]), dht.bucketSize)
+	keyHash := sha256Hash([]byte(target))
+
+	seedPeers := dht.routingTable.NearestPeers(kb.ID(keyHash[:]), dht.bucketSize)
 	if len(seedPeers) == 0 {
 		routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 			Type:  routing.QueryError,
@@ -160,7 +162,6 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		return nil, kb.ErrLookupFailure
 	}
 
-	keyHash := sha256Hash([]byte(target))
 	q := &query{
 		id:         uuid.New(),
 		key:        target,
@@ -182,7 +183,7 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		q.recordValuablePeers()
 	}
 
-	res := q.constructLookupResult(kb.ID(target[:]))
+	res := q.constructLookupResult(kb.ID(keyHash[:]))
 	return res, nil
 }
 
