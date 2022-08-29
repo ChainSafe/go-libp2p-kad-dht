@@ -167,7 +167,7 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		//keyHash:    Hash(targetKadID[:]),
 		ctx:        ctx,
 		dht:        dht,
-		queryPeers: qpeerset.NewQueryPeerset(targetKadID), // TODO: does this need to be hashed?
+		queryPeers: qpeerset.NewQueryPeerset([]byte(target)), // TODO: does this need to be hashed?
 		seedPeers:  seedPeers,
 		peerTimes:  make(map[peer.ID]time.Duration),
 		terminated: false,
@@ -382,7 +382,7 @@ func (q *query) terminate(ctx context.Context, cancel context.CancelFunc, reason
 		NewLookupEvent(
 			q.dht.self,
 			q.id,
-			string(q.key[:]),
+			q.key,
 			nil,
 			nil,
 			NewLookupTerminateEvent(reason),
