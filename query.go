@@ -150,10 +150,9 @@ processFollowUp:
 
 func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// pick the K closest peers to the key in our Routing table.
-	//targetKadID := kb.ConvertKey(target) // this sha256 hashes `target`, TODO remove as target will already be hashed
-	keyHash := sha256Hash([]byte(target))
+	targetKadID := kb.ConvertKey(target) // this sha256 hashes `target`, TODO maybe remove if target will already be hashed?
 
-	seedPeers := dht.routingTable.NearestPeers(kb.ID(keyHash[:]), dht.bucketSize)
+	seedPeers := dht.routingTable.NearestPeers(targetKadID, dht.bucketSize)
 	if len(seedPeers) == 0 {
 		routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 			Type:  routing.QueryError,
@@ -163,12 +162,12 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 	}
 
 	q := &query{
-		id:         uuid.New(),
-		key:        target,
-		keyHash:    keyHash,
+		id:  uuid.New(),
+		key: target,
+		//keyHash:    Hash(targetKadID[:]),
 		ctx:        ctx,
 		dht:        dht,
-		queryPeers: qpeerset.NewQueryPeerset(keyHash[:]), // TODO: does this need to be hashed?
+		queryPeers: qpeerset.NewQueryPeerset(targetKadID), // TODO: does this need to be hashed?
 		seedPeers:  seedPeers,
 		peerTimes:  make(map[peer.ID]time.Duration),
 		terminated: false,
@@ -183,7 +182,7 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		q.recordValuablePeers()
 	}
 
-	res := q.constructLookupResult(kb.ID(keyHash[:]))
+	res := q.constructLookupResult(targetKadID)
 	return res, nil
 }
 
@@ -313,7 +312,7 @@ func (q *query) spawnQuery(ctx context.Context, cause peer.ID, queryPeer peer.ID
 		NewLookupEvent(
 			q.dht.self,
 			q.id,
-			string(q.key[:]), // TODO this was originally the raw key
+			q.key, // TODO: change to hashed key?
 			NewLookupUpdateEvent(
 				cause,
 				q.queryPeers.GetReferrer(queryPeer),

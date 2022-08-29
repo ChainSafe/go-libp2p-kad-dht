@@ -275,9 +275,9 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 
 	logger.Debugw("finding value", "key", internal.LoggableRecordKeyString(key))
 
-	keyHash := sha256Hash([]byte(key))
+	//keyHash := sha256Hash([]byte(key))
 
-	if rec, err := dht.getLocal(ctx, string(keyHash[:])); rec != nil && err == nil {
+	if rec, err := dht.getLocal(ctx, key); rec != nil && err == nil {
 		select {
 		case valCh <- recvdVal{
 			Val:  rec.GetValue(),
@@ -298,7 +298,7 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 					ID:   p,
 				})
 
-				rec, peers, err := dht.protoMessenger.GetValue(ctx, p, string(keyHash[:]))
+				rec, peers, err := dht.protoMessenger.GetValue(ctx, p, key)
 				if err != nil {
 					return nil, err
 				}
