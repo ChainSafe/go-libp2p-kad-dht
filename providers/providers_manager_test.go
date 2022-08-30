@@ -273,7 +273,7 @@ func TestLargeProvidersSet(t *testing.T) {
 
 	dstore := ds.NewMapDatastore()
 
-	//dirn, err := ioutil.TempDir("", "provtest")
+	//dirn, err := os.MkdirTemp("", "provtest")
 	//if err != nil {
 	//	t.Fatal(err)
 	//}
