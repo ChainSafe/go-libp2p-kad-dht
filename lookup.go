@@ -30,7 +30,7 @@ func (dht *IpfsDHT) GetClosestPeers(ctx context.Context, key string) ([]peer.ID,
 				ID:   p,
 			})
 
-			peers, err := dht.protoMessenger.GetClosestPeers(ctx, p, peer.ID(key)) // TODO do we want to hash peers before lookup?
+			peers, err := dht.protoMessenger.GetClosestPeers(ctx, p, peer.ID(key))
 			if err != nil {
 				logger.Debugf("error getting closer peers: %s", err)
 				return nil, err

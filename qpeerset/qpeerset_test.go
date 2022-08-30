@@ -13,7 +13,7 @@ import (
 
 func TestQPeerSet(t *testing.T) {
 	key := "test"
-	qp := NewQueryPeerset([]byte(key))
+	qp := NewQueryPeerset(key)
 
 	// -----------------Ordering between peers for the Test -----
 	// KEY < peer3 < peer1 < peer4 < peer2

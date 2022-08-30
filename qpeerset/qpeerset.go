@@ -59,7 +59,7 @@ func (sqp *sortedQueryPeerset) Less(i, j int) bool {
 
 // NewQueryPeerset creates a new empty set of peers.
 // key is the target key of the lookup that this peer set is for.
-func NewQueryPeerset(key []byte) *QueryPeerset {
+func NewQueryPeerset(key string) *QueryPeerset {
 	return &QueryPeerset{
 		key:    ks.XORKeySpace.Key([]byte(key)),
 		all:    []queryPeerState{},

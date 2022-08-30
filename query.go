@@ -32,9 +32,6 @@ type query struct {
 	// target key for the lookup
 	key string
 
-	// sha256 hash of the target key
-	keyHash Hash
-
 	// the query context.
 	ctx context.Context
 
@@ -162,12 +159,11 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 	}
 
 	q := &query{
-		id:  uuid.New(),
-		key: target,
-		//keyHash:    Hash(targetKadID[:]),
+		id:         uuid.New(),
+		key:        target,
 		ctx:        ctx,
 		dht:        dht,
-		queryPeers: qpeerset.NewQueryPeerset([]byte(target)), // TODO: does this need to be hashed?
+		queryPeers: qpeerset.NewQueryPeerset(target),
 		seedPeers:  seedPeers,
 		peerTimes:  make(map[peer.ID]time.Duration),
 		terminated: false,
@@ -312,7 +308,7 @@ func (q *query) spawnQuery(ctx context.Context, cause peer.ID, queryPeer peer.ID
 		NewLookupEvent(
 			q.dht.self,
 			q.id,
-			q.key, // TODO: change to hashed key?
+			q.key,
 			NewLookupUpdateEvent(
 				cause,
 				q.queryPeers.GetReferrer(queryPeer),
@@ -440,7 +436,7 @@ func (q *query) queryPeer(ctx context.Context, ch chan<- *queryUpdate, p peer.ID
 		//
 		// add the next peer to the query if matches the query target even if it would otherwise fail the query filter
 		// TODO: this behavior is really specific to how FindPeer works and not GetClosestPeers or any other function
-		isTarget := string(next.ID) == q.key // TODO: wait what? what is happening here? is this only for the case where the key is a peer ID?
+		isTarget := string(next.ID) == q.key
 		if isTarget || q.dht.queryPeerFilter(q.dht, *next) {
 			q.dht.maybeAddAddrs(next.ID, next.Addrs, pstore.TempAddrTTL)
 			saw = append(saw, next.ID)

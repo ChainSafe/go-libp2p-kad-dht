@@ -275,8 +275,6 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 
 	logger.Debugw("finding value", "key", internal.LoggableRecordKeyString(key))
 
-	//keyHash := sha256Hash([]byte(key))
-
 	if rec, err := dht.getLocal(ctx, key); rec != nil && err == nil {
 		select {
 		case valCh <- recvdVal{
@@ -380,6 +378,7 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		return fmt.Errorf("invalid cid: undefined")
 	}
 	keyMH := key.Hash()
+	// hash multihash for double-hashing implementation
 	mhHash := sha256Multihash(keyMH)
 	logger.Debugw("providing", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(keyMH))
 
@@ -482,9 +481,6 @@ func (dht *IpfsDHT) FindProvidersAsync(ctx context.Context, key cid.Cid, count i
 	peerOut := make(chan peer.AddrInfo, chSize)
 
 	keyMH := key.Hash()
-	mhHash := sha256Multihash(keyMH) //double hash
-
-	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(keyMH))
 	go dht.findProvidersAsyncRoutine(ctx, keyMH, count, peerOut)
 	return peerOut
 }
@@ -494,7 +490,9 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	findAll := count == 0
 
-	mhHash := sha256Multihash(key) //double hash
+	// hash multihash for double-hashing implementation
+	mhHash := sha256Multihash(key)
+	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	ps := make(map[peer.ID]struct{})
 	psLock := &sync.Mutex{}
@@ -603,8 +601,6 @@ func (dht *IpfsDHT) FindPeer(ctx context.Context, id peer.ID) (_ peer.AddrInfo, 
 	if pi := dht.FindLocal(id); pi.ID != "" {
 		return pi, nil
 	}
-
-	// TODO: do we want to hash peer ID before lookup?
 
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(id),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
