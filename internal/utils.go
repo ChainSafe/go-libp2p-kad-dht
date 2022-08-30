@@ -1,4 +1,4 @@
-package dht
+package internal
 
 import (
 	"crypto/sha256"
@@ -8,6 +8,6 @@ import (
 
 type Hash [32]byte
 
-func sha256Multihash(mh multihash.Multihash) Hash {
+func Sha256Multihash(mh multihash.Multihash) Hash {
 	return sha256.Sum256(mh)
 }

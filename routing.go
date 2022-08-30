@@ -379,8 +379,8 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	}
 	keyMH := key.Hash()
 	// hash multihash for double-hashing implementation
-	mhHash := sha256Multihash(keyMH)
-	logger.Debugw("providing", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(keyMH))
+	mhHash := internal.Sha256Multihash(keyMH)
+	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
 	err = dht.providerStore.AddProvider(ctx, mhHash[:], peer.AddrInfo{ID: dht.self})
@@ -491,7 +491,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	findAll := count == 0
 
 	// hash multihash for double-hashing implementation
-	mhHash := sha256Multihash(key)
+	mhHash := internal.Sha256Multihash(key)
 	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	ps := make(map[peer.ID]struct{})
