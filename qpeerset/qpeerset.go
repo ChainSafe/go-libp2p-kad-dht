@@ -67,6 +67,14 @@ func NewQueryPeerset(key string) *QueryPeerset {
 	}
 }
 
+func NewQueryPeersetFromHash(hash [32]byte) *QueryPeerset {
+	return &QueryPeerset{
+		key:    ks.XORKeySpace.KeyFromHash(hash),
+		all:    []queryPeerState{},
+		sorted: false,
+	}
+}
+
 func (qp *QueryPeerset) find(p peer.ID) int {
 	for i := range qp.all {
 		if qp.all[i].id == p {

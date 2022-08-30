@@ -76,9 +76,9 @@ type lookupWithFollowupResult struct {
 //
 // After the lookup is complete the query function is run (unless stopped) against all of the top K peers from the
 // lookup that have not already been successfully queried.
-func (dht *IpfsDHT) runLookupWithFollowup(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
+func (dht *IpfsDHT) runLookupWithFollowup(ctx context.Context, target string, isHashed bool, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// run the query
-	lookupRes, err := dht.runQuery(ctx, target, queryFn, stopFn)
+	lookupRes, err := dht.runQuery(ctx, target, isHashed, queryFn, stopFn)
 	if err != nil {
 		return nil, err
 	}
@@ -145,9 +145,14 @@ processFollowUp:
 	return lookupRes, nil
 }
 
-func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
+func (dht *IpfsDHT) runQuery(ctx context.Context, target string, isHashed bool, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// pick the K closest peers to the key in our Routing table.
-	targetKadID := kb.ConvertKey(target) // this sha256 hashes `target`, TODO maybe remove if target will already be hashed?
+
+	targetKadID := kb.ID(target)
+	if !isHashed {
+		// this sha256 hashes `target`, so don't hash `target` if it's already been hashed
+		targetKadID = kb.ConvertKey(target)
+	}
 
 	seedPeers := dht.routingTable.NearestPeers(targetKadID, dht.bucketSize)
 	if len(seedPeers) == 0 {
@@ -158,12 +163,21 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		return nil, kb.ErrLookupFailure
 	}
 
+	var qpset *qpeerset.QueryPeerset
+	if isHashed {
+		var hash [32]byte
+		copy(hash[:], targetKadID)
+		qpset = qpeerset.NewQueryPeersetFromHash(hash)
+	} else {
+		qpset = qpeerset.NewQueryPeerset(target)
+	}
+
 	q := &query{
 		id:         uuid.New(),
-		key:        target,
+		key:        target, // TODO change this if hashed?
 		ctx:        ctx,
 		dht:        dht,
-		queryPeers: qpeerset.NewQueryPeerset(target),
+		queryPeers: qpset,
 		seedPeers:  seedPeers,
 		peerTimes:  make(map[peer.ID]time.Duration),
 		terminated: false,
