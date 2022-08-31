@@ -512,10 +512,12 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		return len(ps)
 	}
 
+	// TODO: this reads from a local cache, probably don't need to use prefixes here
 	provs, err := dht.providerStore.GetProviders(ctx, mhHash[:])
 	if err != nil {
 		return
 	}
+
 	for _, p := range provs {
 		// NOTE: Assuming that this list of peers is unique
 		if psTryAdd(p.ID) {
@@ -542,7 +544,14 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				ID:   p,
 			})
 
-			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, multihash.Multihash(mhHash[:])) // TODO: this isn't a multihash anymore, change GetProvider param type instead?
+			var key []byte
+			if dht.prefixRouting {
+				key = mhHash[:dht.prefixLength]
+			} else {
+				key = mhHash[:]
+			}
+
+			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, key)
 			if err != nil {
 				return nil, err
 			}

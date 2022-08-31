@@ -148,6 +148,10 @@ type IpfsDHT struct {
 
 	// configuration variables for tests
 	testAddressUpdateProcessing bool
+
+	// prefix routing
+	prefixRouting bool
+	prefixLength  int
 }
 
 // Assert that IPFS assumptions about interfaces aren't broken. These aren't a
@@ -685,6 +689,7 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 
 // nearestPeersToQuery returns the routing tables closest peers.
 func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
+	// TODO: don't hash key again if key is already hashed (but how do we know that?)
 	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(pmes.GetKey())), count)
 	return closer
 }
