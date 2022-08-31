@@ -352,7 +352,6 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 		lookupResCh <- lookupRes
 
 		if ctx.Err() == nil {
-			// TODO: what is this doing
 			dht.refreshRTIfNoShortcut(kb.ConvertKey(key), lookupRes)
 		}
 	}()
@@ -586,7 +585,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	)
 
 	if err == nil && ctx.Err() == nil {
-		// TODO this hashes the key also, check what this fn is doing
 		dht.refreshRTIfNoShortcut(kb.ConvertKey(string(key)), lookupRes)
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"sort"
 
+	ks "github.com/ChainSafe/go-keyspace"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ks "github.com/whyrusleeping/go-keyspace"
 )
 
 // PeerState describes the state of a peer ID during the lifecycle of an individual lookup.

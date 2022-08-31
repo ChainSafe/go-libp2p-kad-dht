@@ -3,6 +3,7 @@ module github.com/libp2p/go-libp2p-kad-dht
 go 1.18
 
 require (
+	github.com/ChainSafe/go-keyspace v0.0.0-20220830203127-eae3b7c602f0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.3.0
@@ -32,7 +33,6 @@ require (
 	github.com/multiformats/go-multihash v0.2.0
 	github.com/multiformats/go-multistream v0.3.3
 	github.com/stretchr/testify v1.8.0
-	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/otel v1.7.0
 	go.opentelemetry.io/otel/trace v1.7.0
@@ -125,5 +125,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
-
-replace github.com/whyrusleeping/go-keyspace => ../../ChainSafe/go-keyspace
