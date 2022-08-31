@@ -685,6 +685,12 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 
 // nearestPeersToQuery returns the routing tables closest peers.
 func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
+	if pmes.GetType() == pb.Message_GET_PROVIDERS {
+		// for GET_PROVIDERS messages, the message key is the hashed multihash, so don't hash it again
+		closer := dht.routingTable.NearestPeers(kb.ID(string(pmes.GetKey())), count)
+		return closer
+	}
+
 	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(pmes.GetKey())), count)
 	return closer
 }
