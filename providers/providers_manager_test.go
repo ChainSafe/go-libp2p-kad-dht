@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-peerstore/pstoremem"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 
 	mh "github.com/multiformats/go-multihash"
 
@@ -274,23 +274,22 @@ func TestLargeProvidersSet(t *testing.T) {
 	dstore := ds.NewMapDatastore()
 
 	//dirn, err := os.MkdirTemp("", "provtest")
-	//if err != nil {
 	//	t.Fatal(err)
-	//}
+	// }
 	//
-	//opts := &lds.Options{
+	// opts := &lds.Options{
 	//	NoSync:      true,
 	//	Compression: 1,
-	//}
-	//lds, err := lds.NewDatastore(dirn, opts)
-	//if err != nil {
+	// }
+	// lds, err := lds.NewDatastore(dirn, opts)
+	// if err != nil {
 	//	t.Fatal(err)
-	//}
-	//dstore = lds
+	// }
+	// dstore = lds
 	//
-	//defer func() {
+	// defer func() {
 	//	os.RemoveAll(dirn)
-	//}()
+	// }()
 
 	ctx := context.Background()
 	var peers []peer.ID
