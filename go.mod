@@ -13,15 +13,13 @@ require (
 	github.com/ipfs/go-datastore v0.5.1
 	github.com/ipfs/go-detect-race v0.0.1
 	github.com/ipfs/go-ipfs-util v0.0.2
-	github.com/ipfs/go-ipns v0.1.2
+	github.com/ipfs/go-ipns v0.2.0
 	github.com/ipfs/go-log v1.0.5
 	github.com/jbenet/goprocess v0.1.4
-	github.com/libp2p/go-eventbus v0.2.1
 	github.com/libp2p/go-libp2p v0.22.0
-	github.com/libp2p/go-libp2p-core v0.19.1
+	github.com/libp2p/go-libp2p-core v0.20.0
 	github.com/libp2p/go-libp2p-kbucket v0.4.7
-	github.com/libp2p/go-libp2p-peerstore v0.7.1
-	github.com/libp2p/go-libp2p-record v0.1.3
+	github.com/libp2p/go-libp2p-record v0.2.0
 	github.com/libp2p/go-libp2p-routing-helpers v0.2.3
 	github.com/libp2p/go-libp2p-testing v0.11.0
 	github.com/libp2p/go-libp2p-xor v0.1.0
@@ -42,7 +40,6 @@ require (
 require (
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
@@ -128,3 +125,5 @@ require (
 
 //replace github.com/libp2p/go-libp2p-kbucket => github.com/ChainSafe/go-libp2p-kbucket v0.0.0-20220908203920-02442af318da
 replace github.com/libp2p/go-libp2p-kbucket => ../../ChainSafe/go-libp2p-kbucket
+
+replace github.com/libp2p/go-libp2p-kbucket/peerdiversity => ../../ChainSafe/go-libp2p-kbucket/peerdiversity

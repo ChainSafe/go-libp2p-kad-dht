@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
-	pstore "github.com/libp2p/go-libp2p-peerstore"
+	"github.com/libp2p/go-libp2p/core/peer"
+	pstore "github.com/libp2p/go-libp2p/p2p/host/peerstore"
 
 	"github.com/gogo/protobuf/proto"
 	ds "github.com/ipfs/go-datastore"
@@ -315,6 +315,12 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 	}
 
 	resp := pb.NewMessage(pmes.GetType(), pmes.GetKey(), pmes.GetClusterLevel())
+
+	// providers = local providers that have the content
+	// closer = other peers to query
+	// TODO: implement providerStore.GetProvidersByPrefix (actually, it seems the db lookup
+	// is by prefix already, so should be ok)
+	// TODO: update betterPeersToQuery to call NearestPeersToPrefix for GetProviders
 
 	// setup providers
 	providers, err := dht.providerStore.GetProviders(ctx, key)

@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/peerstore"
-	"github.com/libp2p/go-libp2p-core/routing"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/routing"
 
 	"github.com/ipfs/go-cid"
 	u "github.com/ipfs/go-ipfs-util"
@@ -251,7 +251,7 @@ func (dht *IpfsDHT) updatePeerValues(ctx context.Context, key string, val []byte
 	fixupRec := record.MakePutRecord(key, val)
 	for _, p := range peers {
 		go func(p peer.ID) {
-			//TODO: Is this possible?
+			// TODO: Is this possible?
 			if p == dht.self {
 				err := dht.putLocal(ctx, key, fixupRec)
 				if err != nil {
@@ -542,7 +542,14 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				ID:   p,
 			})
 
-			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, multihash.Multihash(mhHash[:])) // TODO: this isn't a multihash anymore, change GetProvider param type instead?
+			var lookupKey []byte
+			if dht.prefixLength != 0 {
+				lookupKey = mhHash[:dht.prefixLength]
+			} else {
+				lookupKey = mhHash[:]
+			}
+
+			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, lookupKey)
 			if err != nil {
 				return nil, err
 			}
@@ -551,6 +558,9 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
+				// TODO: if this is a prefix lookup, the providers might not actually have
+				// the content we're looking for. discard all that don't
+				// (do we need to change return type of the msg???)
 				dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
 				logger.Debugf("got provider: %s", prov)
 				if psTryAdd(prov.ID) {

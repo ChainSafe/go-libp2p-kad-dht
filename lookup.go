@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/routing"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/routing"
 
 	kb "github.com/libp2p/go-libp2p-kbucket"
 )

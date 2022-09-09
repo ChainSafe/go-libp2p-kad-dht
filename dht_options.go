@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/protocol"
 	dhtcfg "github.com/libp2p/go-libp2p-kad-dht/internal/config"
 	"github.com/libp2p/go-libp2p-kad-dht/providers"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/protocol"
 
 	"github.com/libp2p/go-libp2p-kbucket/peerdiversity"
 	record "github.com/libp2p/go-libp2p-record"
@@ -35,6 +35,14 @@ const (
 const DefaultPrefix protocol.ID = "/ipfs"
 
 type Option = dhtcfg.Option
+
+// PrefixLookups configures the DHT to use prefixes of keys for provider lookups.
+func PrefixLookups(prefixLen int) Option {
+	return func(c *dhtcfg.Config) error {
+		c.PrefixLookupLength = prefixLen
+		return nil
+	}
+}
 
 // ProviderStore sets the provider storage manager.
 func ProviderStore(ps providers.ProviderStore) Option {

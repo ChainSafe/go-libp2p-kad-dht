@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/libp2p/go-libp2p-core/peerstore"
-	"github.com/libp2p/go-libp2p-core/protocol"
-	"github.com/libp2p/go-libp2p-core/routing"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/libp2p/go-libp2p/core/routing"
 
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	dhtcfg "github.com/libp2p/go-libp2p-kad-dht/internal/config"
@@ -149,9 +149,9 @@ type IpfsDHT struct {
 	// configuration variables for tests
 	testAddressUpdateProcessing bool
 
-	// prefix routing
-	prefixRouting bool
-	prefixLength  int
+	// length of prefix of keys for provider lookups
+	// if 0, the whole key is used.
+	prefixLength int
 }
 
 // Assert that IPFS assumptions about interfaces aren't broken. These aren't a
@@ -199,6 +199,8 @@ func New(ctx context.Context, h host.Host, options ...Option) (*IpfsDHT, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	dht.prefixLength = cfg.PrefixLookupLength
 
 	dht.testAddressUpdateProcessing = cfg.TestAddressUpdateProcessing
 
@@ -311,7 +313,7 @@ func makeDHT(ctx context.Context, h host.Host, cfg dhtcfg.Config) (*IpfsDHT, err
 	// To grok the Math Wizardy that produced these exact equations, please be patient as a document explaining it will
 	// be published soon.
 	if cfg.Concurrency < cfg.BucketSize { // (alpha < K)
-		l1 := math.Log(float64(1) / float64(cfg.BucketSize))                              //(Log(1/K))
+		l1 := math.Log(float64(1) / float64(cfg.BucketSize))                              // (Log(1/K))
 		l2 := math.Log(float64(1) - (float64(cfg.Concurrency) / float64(cfg.BucketSize))) // Log(1 - (alpha / K))
 		maxLastSuccessfulOutboundThreshold = time.Duration(l1 / l2 * float64(cfg.RoutingTable.RefreshInterval))
 	} else {
@@ -689,13 +691,22 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 
 // nearestPeersToQuery returns the routing tables closest peers.
 func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
+	key := pmes.GetKey()
+
 	if pmes.GetType() == pb.Message_GET_PROVIDERS {
 		// for GET_PROVIDERS messages, the message key is the hashed multihash, so don't hash it again
-		closer := dht.routingTable.NearestPeers(kb.ID(string(pmes.GetKey())), count)
-		return closer
+		if len(key) < 32 {
+			// prefix lookup
+			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(key)), count)
+			return closer
+		} else {
+			// normal non-prefixed lookup
+			closer := dht.routingTable.NearestPeers(kb.ID(string(key)), count)
+			return closer
+		}
 	}
 
-	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(pmes.GetKey())), count)
+	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(key)), count)
 	return closer
 }
 
