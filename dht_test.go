@@ -1014,6 +1014,57 @@ func TestProvidesAsync(t *testing.T) {
 	}
 }
 
+func TestProvides_PrefixLookup(t *testing.T) {
+	// t.Skip("skipping test to debug another")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dhts := setupDHTS(t, ctx, 4)
+	defer func() {
+		for i := 0; i < 4; i++ {
+			dhts[i].Close()
+			defer dhts[i].host.Close()
+		}
+	}()
+
+	connect(t, ctx, dhts[0], dhts[1])
+	connect(t, ctx, dhts[1], dhts[2])
+	connect(t, ctx, dhts[1], dhts[3])
+
+	for _, k := range testCaseCids {
+		logger.Debugf("announcing provider for %s", k)
+		if err := dhts[3].Provide(ctx, k, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// what is this timeout for? was 60ms before.
+	time.Sleep(time.Millisecond * 6)
+
+	n := 0
+	for _, c := range testCaseCids {
+		n = (n + 1) % 3
+
+		logger.Debugf("getting providers for %s from %d", c, n)
+		ctxT, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		dhts[n].prefixLength = 16 // half the hashed CID for now
+		provchan := dhts[n].FindProvidersAsync(ctxT, c, 1)
+
+		select {
+		case prov := <-provchan:
+			if prov.ID == "" {
+				t.Fatal("Got back nil provider")
+			}
+			if prov.ID != dhts[3].self {
+				t.Fatal("Got back wrong provider")
+			}
+		case <-ctxT.Done():
+			t.Fatal("Did not get a provider back.")
+		}
+	}
+}
+
 func TestLayeredGet(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

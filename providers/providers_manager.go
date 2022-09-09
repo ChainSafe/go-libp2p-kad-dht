@@ -49,7 +49,7 @@ type ProviderManager struct {
 	dstore *autobatch.Datastore
 
 	newprovs chan *addProv
-	getprovs chan *getProv
+	getprovs chan any // TODO: this is either *getprovs or *getProvsByPrefix
 	proc     goprocess.Process
 
 	cleanupInterval time.Duration
@@ -99,11 +99,17 @@ type getProv struct {
 	resp chan []peer.ID
 }
 
+type getProvByPrefix struct {
+	ctx  context.Context
+	key  []byte
+	resp chan map[string][]peer.ID
+}
+
 // NewProviderManager constructor
 func NewProviderManager(ctx context.Context, local peer.ID, ps peerstore.Peerstore, dstore ds.Batching, opts ...Option) (*ProviderManager, error) {
 	pm := new(ProviderManager)
 	pm.self = local
-	pm.getprovs = make(chan *getProv)
+	pm.getprovs = make(chan any)
 	pm.newprovs = make(chan *addProv)
 	pm.pstore = ps
 	pm.dstore = autobatch.NewAutoBatching(dstore, batchBufferSize)
@@ -159,14 +165,30 @@ func (pm *ProviderManager) run(ctx context.Context, proc goprocess.Process) {
 				// as we've updated it since the GC started.
 				gcSkip[mkProvKeyFor(np.key, np.val)] = struct{}{}
 			}
-		case gp := <-pm.getprovs:
-			provs, err := pm.getProvidersForKey(gp.ctx, gp.key)
-			if err != nil && err != ds.ErrNotFound {
-				log.Error("error reading providers: ", err)
+		case maybeGp := <-pm.getprovs:
+			if gp, ok := maybeGp.(*getProv); ok {
+				provs, err := pm.getProvidersForKey(gp.ctx, gp.key)
+				if err != nil && err != ds.ErrNotFound {
+					log.Error("error reading providers: ", err)
+				}
+
+				// set the cap so the user can't append to this.
+				gp.resp <- provs[0:len(provs):len(provs)]
+				continue
 			}
 
-			// set the cap so the user can't append to this.
-			gp.resp <- provs[0:len(provs):len(provs)]
+			if gp, ok := maybeGp.(*getProvByPrefix); ok {
+				provs, err := pm.getProviderSetForKey(gp.ctx, gp.key)
+				if err != nil && err != ds.ErrNotFound {
+					log.Error("error reading providers: ", err)
+				}
+
+				// set the cap so the user can't append to this.
+				gp.resp <- provs.keysToProvider
+				continue
+			}
+
+			panic("type read from getprovs should be *getProv or *getProvByPrefix")
 		case res, ok := <-gcQueryRes:
 			if !ok {
 				if err := gcQuery.Close(); err != nil {
@@ -251,7 +273,7 @@ func (pm *ProviderManager) AddProvider(ctx context.Context, k []byte, provInfo p
 func (pm *ProviderManager) addProv(ctx context.Context, k []byte, p peer.ID) error {
 	now := time.Now()
 	if provs, ok := pm.cache.Get(string(k)); ok {
-		provs.(*providerSet).setVal(p, now)
+		provs.(*providerSet).setVal(p, k, now)
 	} // else not cached, just write through
 
 	return writeProviderEntry(ctx, pm.dstore, k, p, now)
@@ -296,6 +318,29 @@ func (pm *ProviderManager) GetProviders(ctx context.Context, k []byte) ([]peer.A
 	}
 }
 
+func (pm *ProviderManager) GetProvidersForPrefix(ctx context.Context, k []byte) (map[string][]peer.AddrInfo, error) {
+	gp := &getProvByPrefix{
+		ctx:  ctx,
+		key:  k,
+		resp: make(chan map[string][]peer.ID, 1), // buffered to prevent sender from blocking
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case pm.getprovs <- gp:
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case peers := <-gp.resp:
+		ret := make(map[string][]peer.AddrInfo)
+		for key, peerSlice := range peers {
+			ret[key] = peerstoreImpl.PeerInfos(pm.pstore, peerSlice)
+		}
+		return ret, nil
+	}
+}
+
 func (pm *ProviderManager) getProvidersForKey(ctx context.Context, k []byte) ([]peer.ID, error) {
 	pset, err := pm.getProviderSetForKey(ctx, k)
 	if err != nil {
@@ -317,6 +362,7 @@ func (pm *ProviderManager) getProviderSetForKey(ctx context.Context, k []byte) (
 	}
 
 	if len(pset.providers) > 0 {
+		// TODO: if this is a prefix, do we want to cache it?
 		pm.cache.Add(string(k), pset)
 	}
 
@@ -374,7 +420,17 @@ func loadProviderSet(ctx context.Context, dstore ds.Datastore, k []byte) (*provi
 
 		pid := peer.ID(decstr)
 
-		out.setVal(pid, t)
+		decKey, err := base32.RawStdEncoding.DecodeString(e.Key[len(ProvidersKeyPrefix):lix])
+		if err != nil {
+			log.Error("base32 decoding error: ", err)
+			err = dstore.Delete(ctx, ds.RawKey(e.Key))
+			if err != nil && err != ds.ErrNotFound {
+				log.Error("failed to remove provider record from disk: ", err)
+			}
+			continue
+		}
+
+		out.setVal(pid, decKey, t)
 	}
 
 	return out, nil

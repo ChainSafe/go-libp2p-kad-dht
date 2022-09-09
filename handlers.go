@@ -320,7 +320,6 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 	// closer = other peers to query
 	// TODO: implement providerStore.GetProvidersByPrefix (actually, it seems the db lookup
 	// is by prefix already, so should be ok)
-	// TODO: update betterPeersToQuery to call NearestPeersToPrefix for GetProviders
 
 	// setup providers
 	providers, err := dht.providerStore.GetProviders(ctx, key)
