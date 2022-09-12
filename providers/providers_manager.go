@@ -36,6 +36,7 @@ var log = logging.Logger("providers")
 type ProviderStore interface {
 	AddProvider(ctx context.Context, key []byte, prov peer.AddrInfo) error
 	GetProviders(ctx context.Context, key []byte) ([]peer.AddrInfo, error)
+	GetProvidersForPrefix(ctx context.Context, key []byte) (map[peer.ID][][]byte, error) // TODO: is there a way to get this to return peer.AddrInfo?
 }
 
 // ProviderManager adds and pulls providers out of the datastore,
@@ -102,7 +103,7 @@ type getProv struct {
 type getProvByPrefix struct {
 	ctx  context.Context
 	key  []byte
-	resp chan map[string][]peer.ID
+	resp chan map[peer.ID][][]byte
 }
 
 // NewProviderManager constructor
@@ -184,7 +185,7 @@ func (pm *ProviderManager) run(ctx context.Context, proc goprocess.Process) {
 				}
 
 				// set the cap so the user can't append to this.
-				gp.resp <- provs.keysToProvider
+				gp.resp <- provs.providerToKeys
 				continue
 			}
 
@@ -318,11 +319,13 @@ func (pm *ProviderManager) GetProviders(ctx context.Context, k []byte) ([]peer.A
 	}
 }
 
-func (pm *ProviderManager) GetProvidersForPrefix(ctx context.Context, k []byte) (map[string][]peer.AddrInfo, error) {
+// GetProvidersForPrefix returns the set of providers with the given prefix, as well
+// as the full key they provide.
+func (pm *ProviderManager) GetProvidersForPrefix(ctx context.Context, k []byte) (map[peer.ID][][]byte, error) {
 	gp := &getProvByPrefix{
 		ctx:  ctx,
 		key:  k,
-		resp: make(chan map[string][]peer.ID, 1), // buffered to prevent sender from blocking
+		resp: make(chan map[peer.ID][][]byte, 1), // buffered to prevent sender from blocking
 	}
 	select {
 	case <-ctx.Done():
@@ -333,11 +336,7 @@ func (pm *ProviderManager) GetProvidersForPrefix(ctx context.Context, k []byte) 
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case peers := <-gp.resp:
-		ret := make(map[string][]peer.AddrInfo)
-		for key, peerSlice := range peers {
-			ret[key] = peerstoreImpl.PeerInfos(pm.pstore, peerSlice)
-		}
-		return ret, nil
+		return peers, nil
 	}
 }
 

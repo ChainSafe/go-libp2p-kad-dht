@@ -1,8 +1,10 @@
 package dht_pb
 
 import (
+	//peerstore "github.com/libp2p/go-libp2p-peerstore"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 
 	logging "github.com/ipfs/go-log"
 	ma "github.com/multiformats/go-multiaddr"
@@ -75,6 +77,20 @@ func PeerInfosToPBPeers(n network.Network, peers []peer.AddrInfo) []Message_Peer
 	for i, pbp := range pbps {
 		c := ConnectionType(n.Connectedness(peers[i].ID))
 		pbp.Connection = c
+	}
+	return pbps
+}
+
+func PeerInfosToPBPeersWithKeys(n network.Network, ps peerstore.Peerstore, provsToKeys map[peer.ID][][]byte) []Message_Peer {
+	pbps := []Message_Peer{}
+
+	for p, keys := range provsToKeys {
+		addrInfo := ps.PeerInfo(p)
+		pbp := peerInfoToPBPeer(addrInfo)
+		pbp.Provides = keys
+		c := ConnectionType(n.Connectedness(p))
+		pbp.Connection = c
+		pbps = append(pbps, pbp)
 	}
 	return pbps
 }

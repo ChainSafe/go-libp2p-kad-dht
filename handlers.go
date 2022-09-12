@@ -314,19 +314,28 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 		return nil, fmt.Errorf("handleGetProviders key is empty")
 	}
 
-	resp := pb.NewMessage(pmes.GetType(), pmes.GetKey(), pmes.GetClusterLevel())
+	resp := pb.NewMessage(pmes.GetType(), key, pmes.GetClusterLevel())
 
 	// providers = local providers that have the content
 	// closer = other peers to query
 	// TODO: implement providerStore.GetProvidersByPrefix (actually, it seems the db lookup
 	// is by prefix already, so should be ok)
 
-	// setup providers
-	providers, err := dht.providerStore.GetProviders(ctx, key)
-	if err != nil {
-		return nil, err
+	if len(key) < 32 {
+		provsToKeys, err := dht.providerStore.GetProvidersForPrefix(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+
+		resp.ProviderPeers = pb.PeerInfosToPBPeersWithKeys(dht.host.Network(), dht.peerstore, provsToKeys)
+	} else {
+		// setup providers
+		providers, err := dht.providerStore.GetProviders(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		resp.ProviderPeers = pb.PeerInfosToPBPeers(dht.host.Network(), providers)
 	}
-	resp.ProviderPeers = pb.PeerInfosToPBPeers(dht.host.Network(), providers)
 
 	// Also send closer peers.
 	closer := dht.betterPeersToQuery(pmes, p, dht.bucketSize)

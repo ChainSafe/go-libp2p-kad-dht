@@ -45,6 +45,9 @@ message Message {
 
 		// used to signal the sender's connection capabilities to the peer
 		ConnectionType connection = 3;
+
+		// keys (ie. hash(CID)s) that the peer provides (used for prefix lookups)
+		repeated bytes provides = 4;
 	}
 
 	// defines what type of message it is.

@@ -202,10 +202,12 @@ type Message_Peer struct {
 	// multiaddrs for a given peer
 	Addrs [][]byte `protobuf:"bytes,2,rep,name=addrs,proto3" json:"addrs,omitempty"`
 	// used to signal the sender's connection capabilities to the peer
-	Connection           Message_ConnectionType `protobuf:"varint,3,opt,name=connection,proto3,enum=dht.pb.Message_ConnectionType" json:"connection,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
-	XXX_unrecognized     []byte                 `json:"-"`
-	XXX_sizecache        int32                  `json:"-"`
+	Connection Message_ConnectionType `protobuf:"varint,3,opt,name=connection,proto3,enum=dht.pb.Message_ConnectionType" json:"connection,omitempty"`
+	// keys (ie. hash(CID)s) that the peer provides (used for prefix lookups)
+	Provides             [][]byte `protobuf:"bytes,4,rep,name=provides,proto3" json:"provides,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
 func (m *Message_Peer) Reset()         { *m = Message_Peer{} }
