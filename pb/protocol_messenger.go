@@ -134,14 +134,14 @@ func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key mul
 
 // GetProviders asks a peer for the providers it knows of for a given key. Also returns the K closest peers to the key
 // as described in GetClosestPeers.
-func (pm *ProtocolMessenger) GetProviders(ctx context.Context, p peer.ID, key []byte) ([]*peer.AddrInfo, []*peer.AddrInfo, error) {
+func (pm *ProtocolMessenger) GetProviders(ctx context.Context, p peer.ID, key []byte) ([]*PeerWithKeys, []*peer.AddrInfo, error) {
 	pmes := NewMessage(Message_GET_PROVIDERS, key, 0)
 	respMsg, err := pm.m.SendRequest(ctx, p, pmes)
 	if err != nil {
 		return nil, nil, err
 	}
-	// TODO: update this to return peer key also
-	provs := PBPeersToPeerInfos(respMsg.GetProviderPeers())
+	// update this to return peer key also
+	provs := PBPeersToPeerInfosWithKeys(respMsg.GetProviderPeers())
 	closerPeers := PBPeersToPeerInfos(respMsg.GetCloserPeers())
 	return provs, closerPeers, nil
 }

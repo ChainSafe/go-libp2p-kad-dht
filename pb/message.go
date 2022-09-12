@@ -103,7 +103,26 @@ func PeerRoutingInfosToPBPeers(peers []PeerRoutingInfo) []Message_Peer {
 	return pbpeers
 }
 
-// PBPeersToPeerInfos converts given []*Message_Peer into []peer.AddrInfo
+type PeerWithKeys struct {
+	AddrInfo *peer.AddrInfo
+	Keys     [][]byte
+}
+
+// PBPeersToPeerInfosWithKeys converts given []*Message_Peer into []*PeerWithKeys
+// Invalid addresses will be silently omitted.
+func PBPeersToPeerInfosWithKeys(pbps []Message_Peer) []*PeerWithKeys {
+	peers := make([]*PeerWithKeys, 0, len(pbps))
+	for _, pbp := range pbps {
+		ai := PBPeerToPeerInfo(pbp)
+		peers = append(peers, &PeerWithKeys{
+			AddrInfo: &ai,
+			Keys:     pbp.Provides,
+		})
+	}
+	return peers
+}
+
+// PBPeersToPeerInfos converts given []*Message_Peer into []*peer.AddrInfo
 // Invalid addresses will be silently omitted.
 func PBPeersToPeerInfos(pbps []Message_Peer) []*peer.AddrInfo {
 	peers := make([]*peer.AddrInfo, 0, len(pbps))

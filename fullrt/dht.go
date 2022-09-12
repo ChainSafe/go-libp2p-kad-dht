@@ -1287,12 +1287,13 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 
 		// Add unique providers from request, up to 'count'
 		for _, prov := range provs {
-			dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
+			// TODO: modify this also
+			dht.maybeAddAddrs(prov.AddrInfo.ID, prov.AddrInfo.Addrs, peerstore.TempAddrTTL)
 			logger.Debugf("got provider: %s", prov)
-			if psTryAdd(prov.ID) {
+			if psTryAdd(prov.AddrInfo.ID) {
 				logger.Debugf("using provider: %s", prov)
 				select {
-				case peerOut <- *prov:
+				case peerOut <- *prov.AddrInfo:
 				case <-ctx.Done():
 					logger.Debug("context timed out sending more providers")
 					return ctx.Err()

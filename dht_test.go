@@ -1015,7 +1015,6 @@ func TestProvidesAsync(t *testing.T) {
 }
 
 func TestProvides_PrefixLookup(t *testing.T) {
-	// t.Skip("skipping test to debug another")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -1038,7 +1037,6 @@ func TestProvides_PrefixLookup(t *testing.T) {
 		}
 	}
 
-	// what is this timeout for? was 60ms before.
 	time.Sleep(time.Millisecond * 6)
 
 	n := 0

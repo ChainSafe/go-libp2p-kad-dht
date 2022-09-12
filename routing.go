@@ -558,15 +558,28 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
-				// TODO: if this is a prefix lookup, the providers might not actually have
+				// if this is a prefix lookup, the providers might not actually have
 				// the content we're looking for. discard all that don't
-				// (do we need to change return type of the msg???)
-				dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
+				if dht.prefixLength > 0 {
+					var hasContent bool
+					for _, key := range prov.Keys {
+						if bytes.Equal(key, mhHash[:]) {
+							hasContent = true
+							break
+						}
+					}
+					if !hasContent {
+						continue
+					}
+				}
+
+				dht.maybeAddAddrs(prov.AddrInfo.ID, prov.AddrInfo.Addrs, peerstore.TempAddrTTL)
 				logger.Debugf("got provider: %s", prov)
-				if psTryAdd(prov.ID) {
+				if psTryAdd(prov.AddrInfo.ID) {
 					logger.Debugf("using provider: %s", prov)
 					select {
-					case peerOut <- *prov:
+					// TODO: what is this for?
+					case peerOut <- *prov.AddrInfo:
 					case <-ctx.Done():
 						logger.Debug("context timed out sending more providers")
 						return nil, ctx.Err()
