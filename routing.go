@@ -516,6 +516,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	if err != nil {
 		return
 	}
+
 	for _, p := range provs {
 		// NOTE: Assuming that this list of peers is unique
 		if psTryAdd(p.ID) {
