@@ -140,7 +140,6 @@ func (pm *ProtocolMessenger) GetProviders(ctx context.Context, p peer.ID, key []
 	if err != nil {
 		return nil, nil, err
 	}
-	// update this to return peer key also
 	provs := PBPeersToPeerInfosWithKeys(respMsg.GetProviderPeers())
 	closerPeers := PBPeersToPeerInfos(respMsg.GetCloserPeers())
 	return provs, closerPeers, nil

@@ -36,7 +36,7 @@ var log = logging.Logger("providers")
 type ProviderStore interface {
 	AddProvider(ctx context.Context, key []byte, prov peer.AddrInfo) error
 	GetProviders(ctx context.Context, key []byte) ([]peer.AddrInfo, error)
-	GetProvidersForPrefix(ctx context.Context, key []byte) (map[peer.ID][][]byte, error) // TODO: is there a way to get this to return peer.AddrInfo?
+	GetProvidersForPrefix(ctx context.Context, key []byte) (map[peer.ID][][]byte, error)
 }
 
 // ProviderManager adds and pulls providers out of the datastore,
@@ -50,7 +50,7 @@ type ProviderManager struct {
 	dstore *autobatch.Datastore
 
 	newprovs chan *addProv
-	getprovs chan any // TODO: this is either *getprovs or *getProvsByPrefix
+	getprovs chan any // note: this is either *getprovs or *getProvsByPrefix
 	proc     goprocess.Process
 
 	cleanupInterval time.Duration

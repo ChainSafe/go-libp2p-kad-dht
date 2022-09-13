@@ -22,10 +22,6 @@ func newProviderSet() *providerSet {
 	}
 }
 
-// func (ps *providerSet) Add(p peer.ID, key []byte) {
-// 	ps.setVal(p, key, time.Now())
-// }
-
 func (ps *providerSet) setVal(p peer.ID, key []byte, t time.Time) {
 	_, found := ps.set[p]
 	if !found {

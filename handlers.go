@@ -316,12 +316,9 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 
 	resp := pb.NewMessage(pmes.GetType(), key, pmes.GetClusterLevel())
 
-	// providers = local providers that have the content
-	// closer = other peers to query
-	// TODO: implement providerStore.GetProvidersByPrefix (actually, it seems the db lookup
-	// is by prefix already, so should be ok)
-
 	if len(key) < 32 {
+		// since the datastore lookup is already by prefix, the only difference is that this call
+		// also returns the keys that the peers provide.
 		provsToKeys, err := dht.providerStore.GetProvidersForPrefix(ctx, key)
 		if err != nil {
 			return nil, err

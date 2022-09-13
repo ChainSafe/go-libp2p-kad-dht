@@ -1,7 +1,6 @@
 package dht_pb
 
 import (
-	//peerstore "github.com/libp2p/go-libp2p-peerstore"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -68,7 +67,7 @@ func RawPeerInfosToPBPeers(peers []peer.AddrInfo) []Message_Peer {
 	return pbpeers
 }
 
-// PeersToPBPeers converts given []peer.Peer into a set of []*Message_Peer,
+// PeersToPBPeers converts given []peer.Peer into a set of []Message_Peer,
 // which can be written to a message and sent out. the key thing this function
 // does (in addition to PeersToPBPeers) is set the ConnectionType with
 // information from the given network.Network.
@@ -81,6 +80,8 @@ func PeerInfosToPBPeers(n network.Network, peers []peer.AddrInfo) []Message_Peer
 	return pbps
 }
 
+// PeerInfosToPBPeersWithKeys performs the same conversion as PeerInfosToPBPeers, except
+// it also adds the keys that the peer providers to the Message_Peer.
 func PeerInfosToPBPeersWithKeys(n network.Network, ps peerstore.Peerstore, provsToKeys map[peer.ID][][]byte) []Message_Peer {
 	pbps := []Message_Peer{}
 

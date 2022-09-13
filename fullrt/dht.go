@@ -95,6 +95,8 @@ type FullRT struct {
 	timeoutPerOp time.Duration
 
 	bulkSendParallelism int
+
+	prefixLength int
 }
 
 // NewFullRT creates a DHT client that tracks the full network. It takes a protocol prefix for the given network,
@@ -185,6 +187,8 @@ func NewFullRT(h host.Host, protocolPrefix protocol.ID, options ...Option) (*Ful
 		crawlerInterval: time.Minute * 60,
 
 		bulkSendParallelism: 20,
+
+		prefixLength: dhtcfg.PrefixLookupLength,
 	}
 
 	rt.wg.Add(1)
@@ -1215,13 +1219,16 @@ func (dht *FullRT) FindProvidersAsync(ctx context.Context, key cid.Cid, count in
 
 	keyMH := key.Hash()
 
-	logger.Debugw("finding providers", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH))
 	go dht.findProvidersAsyncRoutine(ctx, keyMH, count, peerOut)
 	return peerOut
 }
 
 func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.Multihash, count int, peerOut chan peer.AddrInfo) {
 	defer close(peerOut)
+
+	// hash multihash for double-hashing implementation
+	mhHash := internal.Sha256Multihash(key)
+	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	findAll := count == 0
 	ps := make(map[peer.ID]struct{})
@@ -1242,7 +1249,7 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 		return len(ps)
 	}
 
-	provs, err := dht.ProviderManager.GetProviders(ctx, key)
+	provs, err := dht.ProviderManager.GetProviders(ctx, mhHash[:])
 	if err != nil {
 		return
 	}
@@ -1278,7 +1285,14 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 			ID:   p,
 		})
 
-		provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, key)
+		var lookupKey []byte
+		if dht.prefixLength != 0 {
+			lookupKey = mhHash[:dht.prefixLength]
+		} else {
+			lookupKey = mhHash[:]
+		}
+
+		provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, lookupKey)
 		if err != nil {
 			return err
 		}
@@ -1287,7 +1301,21 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 
 		// Add unique providers from request, up to 'count'
 		for _, prov := range provs {
-			// TODO: modify this also
+			// if this is a prefix lookup, the providers might not actually have
+			// the content we're looking for. discard all that don't
+			if dht.prefixLength > 0 {
+				var hasContent bool
+				for _, key := range prov.Keys {
+					if bytes.Equal(key, mhHash[:]) {
+						hasContent = true
+						break
+					}
+				}
+				if !hasContent {
+					continue
+				}
+			}
+
 			dht.maybeAddAddrs(prov.AddrInfo.ID, prov.AddrInfo.Addrs, peerstore.TempAddrTTL)
 			logger.Debugf("got provider: %s", prov)
 			if psTryAdd(prov.AddrInfo.ID) {
