@@ -579,7 +579,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				if psTryAdd(prov.AddrInfo.ID) {
 					logger.Debugf("using provider: %s", prov)
 					select {
-					// TODO: what is this for?
 					case peerOut <- *prov.AddrInfo:
 					case <-ctx.Done():
 						logger.Debug("context timed out sending more providers")
