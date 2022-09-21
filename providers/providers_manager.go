@@ -34,7 +34,7 @@ var log = logging.Logger("providers")
 
 // ProviderStore represents a store that associates peers and their addresses to keys.
 type ProviderStore interface {
-	AddProvider(ctx context.Context, key []byte, prov peer.AddrInfo) error
+	AddProvider(ctx context.Context, key []byte, prov peer.ID) error
 	GetProviders(ctx context.Context, key []byte) ([]peer.AddrInfo, error)
 	GetProvidersForPrefix(ctx context.Context, key []byte) (map[peer.ID][][]byte, error)
 }
@@ -253,14 +253,11 @@ func (pm *ProviderManager) run(ctx context.Context, proc goprocess.Process) {
 }
 
 // AddProvider adds a provider
-func (pm *ProviderManager) AddProvider(ctx context.Context, k []byte, provInfo peer.AddrInfo) error {
-	if provInfo.ID != pm.self { // don't add own addrs.
-		pm.pstore.AddAddrs(provInfo.ID, provInfo.Addrs, peerstore.ProviderAddrTTL)
-	}
+func (pm *ProviderManager) AddProvider(ctx context.Context, k []byte, provInfo peer.ID) error {
 	prov := &addProv{
 		ctx: ctx,
 		key: k,
-		val: provInfo.ID,
+		val: provInfo,
 	}
 	select {
 	case pm.newprovs <- prov:

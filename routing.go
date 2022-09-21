@@ -382,8 +382,14 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	mhHash := internal.Sha256Multihash(keyMH)
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
+	ct, err := encryptAES([]byte(dht.self), keyMH)
+	if err != nil {
+		return err
+	}
+	_ = ct
+
 	// add self locally
-	err = dht.providerStore.AddProvider(ctx, mhHash[:], peer.AddrInfo{ID: dht.self})
+	err = dht.providerStore.AddProvider(ctx, mhHash[:], dht.self)
 	if err != nil {
 		return err
 	}

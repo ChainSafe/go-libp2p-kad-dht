@@ -1349,7 +1349,7 @@ func TestClientModeConnect(t *testing.T) {
 	c := testCaseCids[0]
 	p := peer.ID("TestPeer")
 	mhHash := internal.Sha256Multihash(c.Hash())
-	err := a.ProviderStore().AddProvider(ctx, mhHash[:], peer.AddrInfo{ID: p})
+	err := a.ProviderStore().AddProvider(ctx, mhHash[:], p)
 	if err != nil {
 		t.Fatal(err)
 	}

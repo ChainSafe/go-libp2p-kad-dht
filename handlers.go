@@ -370,7 +370,7 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			continue
 		}
 
-		err := dht.providerStore.AddProvider(ctx, key, peer.AddrInfo{ID: p})
+		err := dht.providerStore.AddProvider(ctx, key, p)
 		if err != nil {
 			return nil, err
 		}
