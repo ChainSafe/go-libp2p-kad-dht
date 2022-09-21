@@ -14,7 +14,7 @@ const (
 
 var errInvalidKeySize = errors.New("key size must be 32 bytes")
 
-func encryptAES(plaintext []byte, key []byte) ([]byte, error) {
+func encryptAES(plaintext, key []byte) ([]byte, error) {
 	aesgcm, err := newAESGCM(key)
 	if err != nil {
 		return nil, err
@@ -30,11 +30,11 @@ func encryptAES(plaintext []byte, key []byte) ([]byte, error) {
 	return append(nonce, ct...), nil
 }
 
-func decryptAES(nonceAndCT []byte, key []byte) ([]byte, error) {
+func decryptAES(nonceAndCT, key []byte) ([]byte, error) {
 	return decryptAESInner(nonceAndCT[:nonceSize], nonceAndCT[nonceSize:], key)
 }
 
-func decryptAESInner(nonce []byte, ciphertext []byte, key []byte) ([]byte, error) {
+func decryptAESInner(nonce, ciphertext, key []byte) ([]byte, error) {
 	aesgcm, err := newAESGCM(key)
 	if err != nil {
 		return nil, err

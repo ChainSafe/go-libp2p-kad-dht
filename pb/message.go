@@ -71,11 +71,14 @@ func RawPeerInfosToPBPeers(peers []peer.AddrInfo) []Message_Peer {
 // which can be written to a message and sent out. the key thing this function
 // does (in addition to PeersToPBPeers) is set the ConnectionType with
 // information from the given network.Network.
-func PeerInfosToPBPeers(n network.Network, peers []peer.AddrInfo) []Message_Peer {
-	pbps := RawPeerInfosToPBPeers(peers)
-	for i, pbp := range pbps {
-		c := ConnectionType(n.Connectedness(peers[i].ID))
+func PeerInfosToPBPeers(n network.Network, ps peerstore.Peerstore, provs []peer.ID) []Message_Peer {
+	pbps := make([]Message_Peer, len(provs))
+	for _, p := range provs {
+		addrInfo := ps.PeerInfo(p)
+		pbp := peerInfoToPBPeer(addrInfo)
+		c := ConnectionType(n.Connectedness(p))
 		pbp.Connection = c
+		pbps = append(pbps, pbp)
 	}
 	return pbps
 }
@@ -83,8 +86,7 @@ func PeerInfosToPBPeers(n network.Network, peers []peer.AddrInfo) []Message_Peer
 // PeerInfosToPBPeersWithKeys performs the same conversion as PeerInfosToPBPeers, except
 // it also adds the keys that the peer providers to the Message_Peer.
 func PeerInfosToPBPeersWithKeys(n network.Network, ps peerstore.Peerstore, provsToKeys map[peer.ID][][]byte) []Message_Peer {
-	pbps := []Message_Peer{}
-
+	pbps := make([]Message_Peer, len(provsToKeys))
 	for p, keys := range provsToKeys {
 		addrInfo := ps.PeerInfo(p)
 		pbp := peerInfoToPBPeer(addrInfo)
