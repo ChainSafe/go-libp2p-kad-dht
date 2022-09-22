@@ -67,13 +67,29 @@ func RawPeerInfosToPBPeers(peers []peer.AddrInfo) []Message_Peer {
 	return pbpeers
 }
 
-// PeersToPBPeers converts given []peer.Peer into a set of []Message_Peer,
+// PeersToPBPeers converts given []peer.Peer into a set of []*Message_Peer,
 // which can be written to a message and sent out. the key thing this function
 // does (in addition to PeersToPBPeers) is set the ConnectionType with
 // information from the given network.Network.
-func PeerInfosToPBPeers(n network.Network, ps peerstore.Peerstore, provs []peer.ID) []Message_Peer {
-	pbps := make([]Message_Peer, len(provs))
+func PeerInfosToPBPeers(n network.Network, peers []peer.AddrInfo) []Message_Peer {
+	pbps := RawPeerInfosToPBPeers(peers)
+	for i, pbp := range pbps {
+		c := ConnectionType(n.Connectedness(peers[i].ID))
+		pbp.Connection = c
+	}
+	return pbps
+}
+
+// PeerIDsToPBPeers converts given []peer.Peer into a set of []Message_Peer,
+// which can be written to a message and sent out. the key thing this function
+// does (in addition to PeersToPBPeers) is set the ConnectionType with
+// information from the given network.Network.
+func PeerIDsToPBPeers(n network.Network, ps peerstore.Peerstore, provs []peer.ID) []Message_Peer {
+	pbps := make([]Message_Peer, 0, len(provs))
 	for _, p := range provs {
+		if len(p) == 0 {
+			continue
+		}
 		addrInfo := ps.PeerInfo(p)
 		pbp := peerInfoToPBPeer(addrInfo)
 		c := ConnectionType(n.Connectedness(p))
@@ -83,10 +99,10 @@ func PeerInfosToPBPeers(n network.Network, ps peerstore.Peerstore, provs []peer.
 	return pbps
 }
 
-// PeerInfosToPBPeersWithKeys performs the same conversion as PeerInfosToPBPeers, except
+// PeerIDsToPBPeersWithKeys performs the same conversion as PeerInfosToPBPeers, except
 // it also adds the keys that the peer providers to the Message_Peer.
-func PeerInfosToPBPeersWithKeys(n network.Network, ps peerstore.Peerstore, provsToKeys map[peer.ID][][]byte) []Message_Peer {
-	pbps := make([]Message_Peer, len(provsToKeys))
+func PeerIDsToPBPeersWithKeys(n network.Network, ps peerstore.Peerstore, provsToKeys map[peer.ID][][]byte) []Message_Peer {
+	pbps := make([]Message_Peer, 0, len(provsToKeys))
 	for p, keys := range provsToKeys {
 		addrInfo := ps.PeerInfo(p)
 		pbp := peerInfoToPBPeer(addrInfo)

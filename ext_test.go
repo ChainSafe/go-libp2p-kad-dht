@@ -271,7 +271,7 @@ func TestNotFound(t *testing.T) {
 						ps = append(ps, p)
 					}
 
-					resp.CloserPeers = pb.PeerInfosToPBPeers(d.host.Network(), host.Peerstore(), ps)
+					resp.CloserPeers = pb.PeerIDsToPBPeers(d.host.Network(), host.Peerstore(), ps)
 					if err := pbw.WriteMsg(resp); err != nil {
 						return
 					}
@@ -361,7 +361,7 @@ func TestLessThanKResponses(t *testing.T) {
 				case pb.Message_GET_VALUE:
 					resp := &pb.Message{
 						Type:        pmes.Type,
-						CloserPeers: pb.PeerInfosToPBPeers(d.host.Network(), host.Peerstore(), []peer.ID{hosts[1].ID()}),
+						CloserPeers: pb.PeerIDsToPBPeers(d.host.Network(), host.Peerstore(), []peer.ID{hosts[1].ID()}),
 					}
 
 					if err := pbw.WriteMsg(resp); err != nil {
@@ -430,7 +430,7 @@ func TestMultipleQueries(t *testing.T) {
 			case pb.Message_GET_VALUE:
 				resp := &pb.Message{
 					Type:        pmes.Type,
-					CloserPeers: pb.PeerInfosToPBPeers(d.host.Network(), hosts[1].Peerstore(), []peer.ID{hosts[0].ID()}),
+					CloserPeers: pb.PeerIDsToPBPeers(d.host.Network(), hosts[1].Peerstore(), []peer.ID{hosts[0].ID()}),
 				}
 
 				if err := pbw.WriteMsg(resp); err != nil {

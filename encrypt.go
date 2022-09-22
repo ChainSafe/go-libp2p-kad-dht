@@ -4,7 +4,10 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
+
+	"github.com/multiformats/go-multihash"
 )
 
 const (
@@ -64,4 +67,10 @@ func newAESGCM(key []byte) (cipher.AEAD, error) {
 	}
 
 	return aesgcm, nil
+}
+
+func multihashToKey(mh multihash.Multihash) []byte {
+	const prefix = "AESGCM"
+	h := sha256.Sum256(append([]byte(prefix), mh...))
+	return h[:]
 }

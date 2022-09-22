@@ -82,7 +82,7 @@ func (dht *IpfsDHT) handleGetValue(ctx context.Context, p peer.ID, pmes *pb.Mess
 		// 	}
 		// }
 
-		resp.CloserPeers = pb.PeerInfosToPBPeers(dht.host.Network(), dht.peerstore, closer)
+		resp.CloserPeers = pb.PeerIDsToPBPeers(dht.host.Network(), dht.peerstore, closer)
 	}
 
 	return resp, nil
@@ -291,7 +291,14 @@ func (dht *IpfsDHT) handleFindPeer(ctx context.Context, from peer.ID, pmes *pb.M
 		return resp, nil
 	}
 
-	resp.CloserPeers = pb.PeerInfosToPBPeers(dht.host.Network(), dht.peerstore, closest)
+	withAddresses := make([]peer.AddrInfo, 0, len(closest))
+	for _, p := range closest {
+		addrInfo := dht.peerstore.PeerInfo(p)
+		if len(addrInfo.Addrs) > 0 {
+			withAddresses = append(withAddresses, addrInfo)
+		}
+	}
+	resp.CloserPeers = pb.PeerInfosToPBPeers(dht.host.Network(), withAddresses)
 	return resp, nil
 }
 
@@ -313,20 +320,20 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 			return nil, err
 		}
 
-		resp.ProviderPeers = pb.PeerInfosToPBPeersWithKeys(dht.host.Network(), dht.peerstore, provsToKeys)
+		resp.ProviderPeers = pb.PeerIDsToPBPeersWithKeys(dht.host.Network(), dht.peerstore, provsToKeys)
 	} else {
 		// setup providers
 		providers, err := dht.providerStore.GetProviders(ctx, key)
 		if err != nil {
 			return nil, err
 		}
-		resp.ProviderPeers = pb.PeerInfosToPBPeers(dht.host.Network(), dht.peerstore, providers)
+		resp.ProviderPeers = pb.PeerIDsToPBPeers(dht.host.Network(), dht.peerstore, providers)
 	}
 
 	// Also send closer peers.
 	closer := dht.betterPeersToQuery(pmes, p, dht.bucketSize)
 	if closer != nil {
-		resp.CloserPeers = pb.PeerInfosToPBPeers(dht.host.Network(), dht.peerstore, closer)
+		resp.CloserPeers = pb.PeerIDsToPBPeers(dht.host.Network(), dht.peerstore, closer)
 	}
 
 	return resp, nil
