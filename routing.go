@@ -386,10 +386,13 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	if err != nil {
 		return err
 	}
-	_ = ct
 
-	// add self locally
-	err = dht.providerStore.AddProvider(ctx, mhHash[:], dht.self)
+	// fmt.Println(ct, len(ct))
+	// fmt.Println(dht.self, len(dht.self))
+	//ct := dht.self
+
+	// add (encrypted) self locally
+	err = dht.providerStore.AddProvider(ctx, mhHash[:], peer.ID(ct))
 	if err != nil {
 		return err
 	}
@@ -440,7 +443,7 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		go func(p peer.ID) {
 			defer wg.Done()
 			logger.Debugf("putProvider(%s, %s)", internal.LoggableProviderRecordBytes(mhHash[:]), p)
-			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host)
+			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host, []byte(dht.self))
 			if err != nil {
 				logger.Debug(err)
 			}
@@ -523,7 +526,20 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		return
 	}
 
+	decKey := multihashToKey(key)
 	for _, p := range provs {
+		// decrypt peer record if needed
+		if len(p) == encryptedPeerIDLength {
+			ptPeer, err := decryptAES([]byte(p), decKey)
+			if err != nil {
+				fmt.Println("failed to decrypt!!!")
+				// TODO: log error?
+				continue
+			}
+			p = peer.ID(ptPeer)
+			fmt.Println("decrypted peerID", p)
+		}
+
 		// NOTE: Assuming that this list of peers is unique
 		if psTryAdd(p) {
 			addrInfo := dht.peerstore.PeerInfo(p)
@@ -579,6 +595,18 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 					if !hasContent {
 						continue
 					}
+				}
+
+				// decrypt peer record if needed
+				if len(prov.AddrInfo.ID) == encryptedPeerIDLength {
+					ptPeer, err := decryptAES([]byte(prov.AddrInfo.ID), decKey)
+					if err != nil {
+						// TODO: log error?
+						fmt.Println("failed to decrypt!!!")
+						continue
+					}
+					prov.AddrInfo.ID = peer.ID(ptPeer)
+					fmt.Println("decrypted peerID", prov.AddrInfo.ID)
 				}
 
 				dht.maybeAddAddrs(prov.AddrInfo.ID, prov.AddrInfo.Addrs, peerstore.TempAddrTTL)

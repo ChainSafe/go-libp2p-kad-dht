@@ -275,6 +275,7 @@ func (pm *ProviderManager) addProv(ctx context.Context, k []byte, p peer.ID) err
 
 // writeProviderEntry writes the provider into the datastore
 func writeProviderEntry(ctx context.Context, dstore ds.Datastore, k []byte, p peer.ID, t time.Time) error {
+	fmt.Println("add provider", p)
 	dsk := mkProvKeyFor(k, p)
 
 	buf := make([]byte, 16)
@@ -411,6 +412,7 @@ func loadProviderSet(ctx context.Context, dstore ds.Datastore, k []byte) (*provi
 		}
 
 		pid := peer.ID(decstr)
+		fmt.Println("got provider", pid)
 
 		decKey, err := base32.RawStdEncoding.DecodeString(e.Key[len(ProvidersKeyPrefix):lix])
 		if err != nil {

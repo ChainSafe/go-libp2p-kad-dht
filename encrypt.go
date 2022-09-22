@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	nonceSize = 12
-	keySize   = 32
+	nonceSize             = 12
+	keySize               = 32
+	encryptedPeerIDLength = 66
 )
 
 var errInvalidKeySize = errors.New("key size must be 32 bytes")

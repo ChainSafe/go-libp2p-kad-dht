@@ -114,9 +114,9 @@ func (pm *ProtocolMessenger) GetClosestPeers(ctx context.Context, p peer.ID, id 
 }
 
 // PutProvider asks a peer to store that we are a provider for the given key.
-func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key multihash.Multihash, host host.Host) error {
+func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key multihash.Multihash, host host.Host, encID []byte) error {
 	pi := peer.AddrInfo{
-		ID:    host.ID(),
+		ID:    peer.ID(encID),
 		Addrs: host.Addrs(),
 	}
 

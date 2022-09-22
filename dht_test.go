@@ -550,7 +550,7 @@ func TestProvides(t *testing.T) {
 		n = (n + 1) % 3
 
 		logger.Debugf("getting providers for %s from %d", c, n)
-		ctxT, cancel := context.WithTimeout(ctx, time.Second)
+		ctxT, cancel := context.WithTimeout(ctx, time.Second*2)
 		defer cancel()
 		provchan := dhts[n].FindProvidersAsync(ctxT, c, 1)
 
@@ -923,7 +923,7 @@ func TestProvidesMany(t *testing.T) {
 
 	errchan := make(chan error)
 
-	ctxT, cancel = context.WithTimeout(ctx, 5*time.Second)
+	ctxT, cancel = context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 
 	var wg sync.WaitGroup
