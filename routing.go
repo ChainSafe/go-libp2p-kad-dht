@@ -387,10 +387,6 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		return err
 	}
 
-	// fmt.Println(ct, len(ct))
-	// fmt.Println(dht.self, len(dht.self))
-	//ct := dht.self
-
 	// add (encrypted) self locally
 	err = dht.providerStore.AddProvider(ctx, mhHash[:], peer.ID(ct))
 	if err != nil {
@@ -532,12 +528,10 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		if len(p) == encryptedPeerIDLength {
 			ptPeer, err := decryptAES([]byte(p), decKey)
 			if err != nil {
-				fmt.Println("failed to decrypt!!!")
 				// TODO: log error?
 				continue
 			}
 			p = peer.ID(ptPeer)
-			fmt.Println("decrypted peerID", p)
 		}
 
 		// NOTE: Assuming that this list of peers is unique
@@ -602,11 +596,9 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 					ptPeer, err := decryptAES([]byte(prov.AddrInfo.ID), decKey)
 					if err != nil {
 						// TODO: log error?
-						fmt.Println("failed to decrypt!!!")
 						continue
 					}
 					prov.AddrInfo.ID = peer.ID(ptPeer)
-					fmt.Println("decrypted peerID", prov.AddrInfo.ID)
 				}
 
 				dht.maybeAddAddrs(prov.AddrInfo.ID, prov.AddrInfo.Addrs, peerstore.TempAddrTTL)
