@@ -339,12 +339,13 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 	// add provider should use the address given in the message
 	pinfos := pb.PBPeersToPeerInfos(pmes.GetProviderPeers())
 	for _, pi := range pinfos {
-		if pi.ID != p {
-			// we should ignore this provider record! not from originator.
-			// (we should sign them and check signature later...)
-			logger.Debugw("received provider from wrong peer", "from", p, "peer", pi.ID)
-			continue
-		}
+		// TODO: can this be left out w/ provider record encryption??
+		// if pi.ID != p {
+		// 	// we should ignore this provider record! not from originator.
+		// 	// (we should sign them and check signature later...)
+		// 	logger.Debugw("received provider from wrong peer", "from", p, "peer", pi.ID)
+		// 	continue
+		// }
 
 		if len(pi.Addrs) < 1 {
 			logger.Debugw("no valid addresses for provider", "from", p)

@@ -518,7 +518,7 @@ func TestValueGetInvalid(t *testing.T) {
 	testSetGet("valid", "newer", nil)
 }
 
-func TestProvides(t *testing.T) {
+func TestProvides_Small(t *testing.T) {
 	// t.Skip("skipping test to debug another")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -874,7 +874,7 @@ func TestProvidesMany(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	nDHTs := 40
+	nDHTs := 20
 	dhts := setupDHTS(t, ctx, nDHTs)
 	defer func() {
 		for i := 0; i < nDHTs; i++ {
@@ -919,11 +919,11 @@ func TestProvidesMany(t *testing.T) {
 	}
 
 	// what is this timeout for? was 60ms before.
-	time.Sleep(time.Millisecond * 6)
+	time.Sleep(time.Second * 20)
 
 	errchan := make(chan error)
 
-	ctxT, cancel = context.WithTimeout(ctx, 8*time.Second)
+	ctxT, cancel = context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -1037,14 +1037,15 @@ func TestProvides_PrefixLookup(t *testing.T) {
 		}
 	}
 
-	time.Sleep(time.Millisecond * 6)
+	time.Sleep(time.Second)
 
 	n := 0
-	for _, c := range testCaseCids {
+	for i, c := range testCaseCids {
+		t.Log("searching for cid", c, i)
 		n = (n + 1) % 3
 
-		logger.Debugf("getting providers for %s from %d", c, n)
-		ctxT, cancel := context.WithTimeout(ctx, time.Second)
+		t.Logf("getting providers for %s from %d", c, n)
+		ctxT, cancel := context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
 		dhts[n].prefixLength = 16 // half the hashed CID for now
 		provchan := dhts[n].FindProvidersAsync(ctxT, c, 1)

@@ -439,12 +439,13 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		go func(p peer.ID) {
 			defer wg.Done()
 			logger.Debugf("putProvider(%s, %s)", internal.LoggableProviderRecordBytes(mhHash[:]), p)
-			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host, []byte(dht.self))
+			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host, []byte(ct))
 			if err != nil {
 				logger.Debug(err)
 			}
 		}(p)
 	}
+
 	wg.Wait()
 	if exceededDeadline {
 		return context.DeadlineExceeded
@@ -526,6 +527,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	for _, p := range provs {
 		// decrypt peer record if needed
 		if len(p) == encryptedPeerIDLength {
+			fmt.Println("got encrypted provider", p)
 			ptPeer, err := decryptAES([]byte(p), decKey)
 			if err != nil {
 				// TODO: log error?
@@ -573,6 +575,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			}
 
 			logger.Debugf("%d provider entries", len(provs))
+			fmt.Printf("%d provider entries\n", len(provs))
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
