@@ -204,7 +204,9 @@ type Message_Peer struct {
 	// used to signal the sender's connection capabilities to the peer
 	Connection Message_ConnectionType `protobuf:"varint,3,opt,name=connection,proto3,enum=dht.pb.Message_ConnectionType" json:"connection,omitempty"`
 	// keys (ie. hash(CID)s) that the peer provides (used for prefix lookups)
-	Provides             [][]byte `protobuf:"bytes,4,rep,name=provides,proto3" json:"provides,omitempty"`
+	Provides [][]byte `protobuf:"bytes,4,rep,name=provides,proto3" json:"provides,omitempty"`
+	// signature of the provided key + encrypted peer ID for ADD_PROVIDER messages
+	Signature            []byte   `protobuf:"bytes,5,rep,name=signature,proto3" json:"signature,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`

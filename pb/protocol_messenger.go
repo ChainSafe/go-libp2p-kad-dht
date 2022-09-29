@@ -126,8 +126,16 @@ func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key mul
 		return fmt.Errorf("no known addresses for self, cannot put provider")
 	}
 
+	// sign ( key || encID )
+	privKey := host.Peerstore().PrivKey(host.ID())
+	sig, err := privKey.Sign(append(key, encID...))
+	if err != nil {
+		return err
+	}
+
 	pmes := NewMessage(Message_ADD_PROVIDER, key, 0)
 	pmes.ProviderPeers = RawPeerInfosToPBPeers([]peer.AddrInfo{pi})
+	pmes.ProviderPeers[0].Signature = sig
 
 	return pm.m.SendMessage(ctx, p, pmes)
 }

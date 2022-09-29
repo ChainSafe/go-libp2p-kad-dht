@@ -337,22 +337,34 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 	logger.Debugw("adding provider", "from", p, "key", internal.LoggableProviderRecordBytes(key))
 
 	// add provider should use the address given in the message
-	pinfos := pb.PBPeersToPeerInfos(pmes.GetProviderPeers())
-	for _, pi := range pinfos {
-		// TODO: can this be left out w/ provider record encryption??
-		// if pi.ID != p {
-		// 	// we should ignore this provider record! not from originator.
-		// 	// (we should sign them and check signature later...)
-		// 	logger.Debugw("received provider from wrong peer", "from", p, "peer", pi.ID)
-		// 	continue
-		// }
+	provs := pmes.GetProviderPeers()
+	pinfos := pb.PBPeersToPeerInfos(provs)
+	for i, pi := range pinfos {
+		sig := provs[i].Signature
+		pub := dht.peerstore.PubKey(pi.ID) // TODO: maybe need to send pubkey??
+		if pub == nil {
+			panic("yeah we gotta send the pubkey")
+		}
+
+		ok, err := pub.Verify(append(key, pi.ID...), sig)
+		if err != nil {
+			logger.Debugw("failed to verify signature", "from", p, "peer", pi.ID, "error", err)
+			continue
+		}
+
+		if !ok {
+			// we should ignore this provider record! not from originator.
+			// (we should sign them and check signature later...)
+			logger.Debugw("received provider from wrong peer", "from", p, "peer", pi.ID)
+			continue
+		}
 
 		if len(pi.Addrs) < 1 {
 			logger.Debugw("no valid addresses for provider", "from", p)
 			continue
 		}
 
-		err := dht.providerStore.AddProvider(ctx, key, p)
+		err = dht.providerStore.AddProvider(ctx, key, p)
 		if err != nil {
 			return nil, err
 		}

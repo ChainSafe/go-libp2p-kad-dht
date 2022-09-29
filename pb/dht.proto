@@ -48,6 +48,9 @@ message Message {
 
 		// keys (ie. hash(CID)s) that the peer provides (used for prefix lookups)
 		repeated bytes provides = 4;
+
+		// signature of the provided key + encrypted peer ID for ADD_PROVIDER messages
+		bytes signature = 5;
 	}
 
 	// defines what type of message it is.
