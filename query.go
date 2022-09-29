@@ -174,7 +174,7 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, isHashed bool, 
 
 	q := &query{
 		id:         uuid.New(),
-		key:        target, // TODO change this if hashed?
+		key:        target,
 		ctx:        ctx,
 		dht:        dht,
 		queryPeers: qpset,

@@ -353,8 +353,8 @@ func (pm *ProviderManager) getProviderSetForKey(ctx context.Context, k []byte) (
 		return nil, err
 	}
 
-	if len(pset.providers) > 0 {
-		// TODO: if this is a prefix, do we want to cache it?
+	if len(pset.providers) > 0 && len(k) >= 32 {
+		// don't cache if this is a prefix
 		pm.cache.Add(string(k), pset)
 	}
 
