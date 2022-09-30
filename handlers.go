@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/gogo/protobuf/proto"
@@ -341,9 +342,10 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 	pinfos := pb.PBPeersToPeerInfos(provs)
 	for i, pi := range pinfos {
 		sig := provs[i].Signature
-		pub := dht.peerstore.PubKey(pi.ID) // TODO: maybe need to send pubkey??
-		if pub == nil {
-			panic("yeah we gotta send the pubkey")
+		pub, err := crypto.PublicKeyFromProto(provs[i].PublicKey)
+		if err != nil {
+			logger.Debugw("failed to unmarshal public key", "from", p, "peer", pi.ID, "error", err)
+			continue
 		}
 
 		ok, err := pub.Verify(append(key, pi.ID...), sig)

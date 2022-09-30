@@ -8,6 +8,7 @@ import (
 
 	logging "github.com/ipfs/go-log"
 	recpb "github.com/libp2p/go-libp2p-record/pb"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multihash"
@@ -133,9 +134,16 @@ func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key mul
 		return err
 	}
 
+	pubKey := host.Peerstore().PubKey(host.ID())
+	pbPubKey, err := crypto.PublicKeyToProto(pubKey)
+	if err != nil {
+		return err
+	}
+
 	pmes := NewMessage(Message_ADD_PROVIDER, key, 0)
 	pmes.ProviderPeers = RawPeerInfosToPBPeers([]peer.AddrInfo{pi})
 	pmes.ProviderPeers[0].Signature = sig
+	pmes.ProviderPeers[0].PublicKey = pbPubKey
 
 	return pm.m.SendMessage(ctx, p, pmes)
 }
