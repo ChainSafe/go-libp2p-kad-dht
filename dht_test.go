@@ -550,7 +550,7 @@ func TestProvides_Small(t *testing.T) {
 		n = (n + 1) % 3
 
 		logger.Debugf("getting providers for %s from %d", c, n)
-		ctxT, cancel := context.WithTimeout(ctx, time.Second*2)
+		ctxT, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		provchan := dhts[n].FindProvidersAsync(ctxT, c, 1)
 
@@ -874,7 +874,7 @@ func TestProvidesMany(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	nDHTs := 20
+	nDHTs := 40
 	dhts := setupDHTS(t, ctx, nDHTs)
 	defer func() {
 		for i := 0; i < nDHTs; i++ {
@@ -919,11 +919,11 @@ func TestProvidesMany(t *testing.T) {
 	}
 
 	// what is this timeout for? was 60ms before.
-	time.Sleep(time.Second * 20)
+	time.Sleep(time.Second)
 
 	errchan := make(chan error)
 
-	ctxT, cancel = context.WithTimeout(ctx, 10*time.Second)
+	ctxT, cancel = context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -1045,7 +1045,7 @@ func TestProvides_PrefixLookup(t *testing.T) {
 		n = (n + 1) % 3
 
 		t.Logf("getting providers for %s from %d", c, n)
-		ctxT, cancel := context.WithTimeout(ctx, time.Second*5)
+		ctxT, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		dhts[n].prefixLength = 16 // half the hashed CID for now
 		provchan := dhts[n].FindProvidersAsync(ctxT, c, 1)
