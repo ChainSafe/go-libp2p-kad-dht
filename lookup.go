@@ -38,19 +38,6 @@ func (dht *IpfsDHT) GetClosestPeers(ctx context.Context, key string) ([]peer.ID,
 				return nil, err
 			}
 
-			for _, p := range peers {
-				// decrypt peer record if needed
-				if len(p.ID) == encryptedPeerIDLength {
-					panic("uh oh peer ID is encrypted")
-				}
-				// ptPeer, err := decryptAES([]byte(p), decKey)
-				// if err != nil {
-				// 	// TODO: log error?
-				// 	continue
-				// }
-				// peers[i].ID = peer.ID(ptPeer)
-			}
-
 			// For DHT query command
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 				Type:      routing.PeerResponse,
