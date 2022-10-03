@@ -527,10 +527,9 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	for _, p := range provs {
 		// decrypt peer record if needed
 		if len(p) == encryptedPeerIDLength {
-			fmt.Println("got encrypted provider", p)
 			ptPeer, err := decryptAES([]byte(p), decKey)
 			if err != nil {
-				// TODO: log error?
+				logger.Debugf("failed to decrypt encrypted peer ID: %s", err)
 				continue
 			}
 			p = peer.ID(ptPeer)
@@ -575,7 +574,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			}
 
 			logger.Debugf("%d provider entries", len(provs))
-			fmt.Printf("%d provider entries\n", len(provs))
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
@@ -598,7 +596,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				if len(prov.AddrInfo.ID) == encryptedPeerIDLength {
 					ptPeer, err := decryptAES([]byte(prov.AddrInfo.ID), decKey)
 					if err != nil {
-						// TODO: log error?
+						logger.Debugf("failed to decrypt encrypted peer ID: %s", err)
 						continue
 					}
 					prov.AddrInfo.ID = peer.ID(ptPeer)
