@@ -288,8 +288,7 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 	go func() {
 		defer close(valCh)
 		defer close(lookupResCh)
-		const isHashed = false
-		lookupRes, err := dht.runLookupWithFollowup(ctx, key, isHashed,
+		lookupRes, err := dht.runLookupWithFollowup(ctx, key,
 			func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
 				// For DHT query command
 				routing.PublishQueryEvent(ctx, &routing.QueryEvent{
@@ -383,7 +382,7 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
-	err = dht.providerStore.AddProvider(ctx, mhHash[:], peer.AddrInfo{ID: dht.self})
+	err = dht.providerStore.AddProvider(ctx, mhHash, peer.AddrInfo{ID: dht.self})
 	if err != nil {
 		return err
 	}
@@ -512,7 +511,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		return len(ps)
 	}
 
-	provs, err := dht.providerStore.GetProviders(ctx, mhHash[:])
+	provs, err := dht.providerStore.GetProviders(ctx, mhHash)
 	if err != nil {
 		return
 	}
@@ -533,8 +532,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
-	const isHashed = true
-	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash[:]), isHashed,
+	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
 			// For DHT query command
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
@@ -602,8 +600,7 @@ func (dht *IpfsDHT) FindPeer(ctx context.Context, id peer.ID) (_ peer.AddrInfo, 
 		return pi, nil
 	}
 
-	const isHashed = false
-	lookupRes, err := dht.runLookupWithFollowup(ctx, string(id), isHashed,
+	lookupRes, err := dht.runLookupWithFollowup(ctx, string(id),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
 			// For DHT query command
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{

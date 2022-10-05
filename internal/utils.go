@@ -1,14 +1,15 @@
 package internal
 
 import (
-	"crypto/sha256"
-
 	"github.com/multiformats/go-multihash"
 )
 
-type Hash [32]byte
-
-func Sha256Multihash(mh multihash.Multihash) Hash {
+func Sha256Multihash(mh multihash.Multihash) multihash.Multihash {
 	prefix := []byte("CR_DOUBLEHASH")
-	return sha256.Sum256(append(prefix, mh...))
+	//dh := sha256.Sum256(append(prefix, mh...))
+	mh, err := multihash.Sum(append(prefix, mh...), multihash.DBL_SHA2_256, 30)
+	if err != nil {
+		panic(err)
+	}
+	return mh
 }
