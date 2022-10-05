@@ -348,6 +348,8 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			continue
 		}
 
+		// TODO verify that public key corresponds to sender peer ID
+
 		ok, err := pub.Verify(append(key, pi.ID...), sig)
 		if err != nil {
 			logger.Debugw("failed to verify signature", "from", p, "peer", pi.ID, "error", err)
@@ -366,7 +368,7 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			continue
 		}
 
-		err = dht.providerStore.AddProvider(ctx, key, p)
+		err = dht.providerStore.AddProvider(ctx, key, pi.ID)
 		if err != nil {
 			return nil, err
 		}
