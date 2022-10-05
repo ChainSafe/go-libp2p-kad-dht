@@ -348,7 +348,17 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			continue
 		}
 
-		// TODO verify that public key corresponds to sender peer ID
+		// verify that public key corresponds to sender peer ID
+		id, err := peer.IDFromPublicKey(pub)
+		if err != nil {
+			logger.Debugw("failed to derive peer ID from public key", "from", p, "peer", pi.ID, "error", err)
+			continue
+		}
+
+		if id != p {
+			logger.Debugw("remote peer ID does not match public key's peer ID", "from", p, "peer", pi.ID, "error", err)
+			continue
+		}
 
 		ok, err := pub.Verify(append(key, pi.ID...), sig)
 		if err != nil {

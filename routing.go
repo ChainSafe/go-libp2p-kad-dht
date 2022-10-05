@@ -530,6 +530,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			ptPeer, err := decryptAES([]byte(p), decKey)
 			if err != nil {
 				logger.Debugf("failed to decrypt encrypted peer ID: %s", err)
+				// TODO: remove from provider store, since it's a bad record
 				continue
 			}
 			p = peer.ID(ptPeer)
