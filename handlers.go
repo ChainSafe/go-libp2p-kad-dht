@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
 	recpb "github.com/libp2p/go-libp2p-record/pb"
+	b58 "github.com/mr-tron/base58/base58"
 	"github.com/multiformats/go-base32"
 )
 
@@ -318,10 +319,28 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 		resp.ProviderPeers = pb.PeerIDsToPBPeers(dht.host.Network(), dht.peerstore, providers)
 	}
 
+	if len(resp.ProviderPeers) > 0 {
+		logger.Infof("%s got providers for lookup request for key %s",
+			dht.self,
+			b58.Encode(key))
+
+		for _, prov := range resp.ProviderPeers {
+			logger.Infof("provider peer ID (encrypted): %s", b58.Encode([]byte(prov.Id)))
+		}
+	}
+
 	// Also send closer peers.
 	closer := dht.betterPeersToQuery(pmes, p, dht.bucketSize)
 	if closer != nil {
 		resp.CloserPeers = pb.PeerIDsToPBPeers(dht.host.Network(), dht.peerstore, closer)
+	}
+
+	if len(resp.ProviderPeers) == 0 {
+		logger.Infof("%s got no providers for key %s, sending %d closer peers",
+			dht.self,
+			b58.Encode(key),
+			len(closer),
+		)
 	}
 
 	return resp, nil
@@ -377,6 +396,12 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			logger.Debugw("no valid addresses for provider", "from", p)
 			continue
 		}
+
+		logger.Infof("%s adding provider %s for key %s",
+			dht.self,
+			pi.ID,
+			b58.Encode(key),
+		)
 
 		err = dht.providerStore.AddProvider(ctx, key, pi.ID)
 		if err != nil {

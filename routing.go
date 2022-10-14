@@ -11,6 +11,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/routing"
+	b58 "github.com/mr-tron/base58/base58"
 
 	"github.com/ipfs/go-cid"
 	u "github.com/ipfs/go-ipfs-util"
@@ -439,7 +440,7 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		go func(p peer.ID) {
 			defer wg.Done()
 			logger.Debugf("putProvider(%s, %s)", internal.LoggableProviderRecordBytes(mhHash[:]), p)
-			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host, []byte(ct))
+			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host, ct)
 			if err != nil {
 				logger.Debug(err)
 			}
@@ -525,6 +526,11 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	decKey := multihashToKey(key)
 	for _, p := range provs {
+		logger.Infof("%s found local peer record with peer ID (encrypted): %s",
+			dht.self,
+			p,
+		)
+
 		// decrypt peer record if needed
 		if len(p) == encryptedPeerIDLength {
 			ptPeer, err := decryptAES([]byte(p), decKey)
@@ -592,6 +598,10 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 						continue
 					}
 				}
+
+				logger.Infof("%s received peer record with peer ID (encrypted): %s",
+					dht.self,
+					b58.Encode([]byte(prov.AddrInfo.ID)))
 
 				// decrypt peer record if needed
 				if len(prov.AddrInfo.ID) == encryptedPeerIDLength {
