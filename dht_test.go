@@ -1035,6 +1035,9 @@ func TestProvides_PrefixLookup(t *testing.T) {
 		if err := dhts[3].Provide(ctx, k, true); err != nil {
 			t.Fatal(err)
 		}
+
+		// TODO: delete provider from local datastore
+		// to ensure querying peers works
 	}
 
 	time.Sleep(time.Second)
