@@ -24,6 +24,7 @@ require (
 	github.com/libp2p/go-libp2p-xor v0.1.0
 	github.com/libp2p/go-msgio v0.2.0
 	github.com/libp2p/go-netroute v0.2.0
+	github.com/mr-tron/base58 v1.2.0
 	github.com/multiformats/go-base32 v0.0.4
 	github.com/multiformats/go-multiaddr v0.6.0
 	github.com/multiformats/go-multibase v0.1.1
@@ -88,7 +89,6 @@ require (
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
-	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/multiformats/go-base36 v0.1.0 // indirect
 	github.com/multiformats/go-multiaddr-dns v0.3.1 // indirect
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
@@ -124,6 +124,8 @@ require (
 )
 
 replace github.com/libp2p/go-libp2p-kbucket => ../../ChainSafe/go-libp2p-kbucket
+
+replace github.com/ipfs/go-datastore => ../../ChainSafe/go-datastore
 
 // replace github.com/libp2p/go-libp2p-kbucket => github.com/ChainSafe/go-libp2p-kbucket v0.0.0-20220908203920-02442af318da
 // replace github.com/libp2p/go-libp2p-kbucket/keyspace => github.com/ChainSafe/go-libp2p-kbucket/keyspace v0.0.0-20220908203920-02442af318da
