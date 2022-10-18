@@ -201,6 +201,10 @@ func New(ctx context.Context, h host.Host, options ...Option) (*IpfsDHT, error) 
 	}
 
 	dht.prefixLength = cfg.PrefixLookupLength
+	if dht.prefixLength > 32 {
+		// if prefixLength is greater than the hash length, then just look up the whole hash
+		dht.prefixLength = 0
+	}
 
 	dht.testAddressUpdateProcessing = cfg.TestAddressUpdateProcessing
 
