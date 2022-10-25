@@ -2,6 +2,7 @@ package dht
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -426,6 +427,17 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 	}
 
 	return rt, err
+}
+
+// SetPrefixLength sets the prefix length for DHT provider lookups.
+// TODO: not concurrency safe!
+func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
+	if prefixLength > 32 || prefixLength < 1 {
+		return errors.New("invalid prefix length")
+	}
+
+	dht.prefixLength = prefixLength
+	return nil
 }
 
 // ProviderStore returns the provider storage object for storing and retrieving provider records.
