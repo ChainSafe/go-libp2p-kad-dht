@@ -432,7 +432,7 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 // SetPrefixLength sets the prefix length for DHT provider lookups.
 // TODO: not concurrency safe!
 func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
-	if prefixLength > 32 || prefixLength < 1 {
+	if prefixLength > 32 || prefixLength < 0 {
 		return errors.New("invalid prefix length")
 	}
 
