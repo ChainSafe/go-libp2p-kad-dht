@@ -581,10 +581,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	}
 
 	lookupKey := prefixByBits(mhHash[:], dht.prefixLength)
-	logger.Infof("lookup key %v", mhHash[:])
-	logger.Infof("lookup key prefix %v", lookupKey)
-	logger.Infof("prefix length (bits) %d", dht.prefixLength)
-
 	const isHashed = true
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash[:]), isHashed,
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
