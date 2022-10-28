@@ -320,9 +320,9 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 	}
 
 	if len(resp.ProviderPeers) > 0 {
-		logger.Infof("%s got providers for lookup request for key %s",
+		logger.Infof("%s got providers for lookup request for key %x",
 			dht.self,
-			b58.Encode(key))
+			key)
 
 		for _, prov := range resp.ProviderPeers {
 			logger.Infof("provider peer ID (encrypted): %s", b58.Encode([]byte(prov.Id)))
@@ -336,9 +336,9 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 	}
 
 	if len(resp.ProviderPeers) == 0 {
-		logger.Infof("%s got no providers for key %s, sending %d closer peers",
+		logger.Infof("%s got no providers for key %x, sending %d closer peers",
 			dht.self,
-			b58.Encode(key),
+			key,
 			len(closer),
 		)
 	}
@@ -397,10 +397,10 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			continue
 		}
 
-		logger.Infof("%s adding provider %s for key %s",
+		logger.Infof("%s adding provider %s for key %x",
 			dht.self,
 			pi.ID,
-			b58.Encode(key),
+			key,
 		)
 
 		err = dht.providerStore.AddProvider(ctx, key, pi.ID)

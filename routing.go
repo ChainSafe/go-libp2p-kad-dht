@@ -492,6 +492,8 @@ func (dht *IpfsDHT) FindProvidersAsync(ctx context.Context, key cid.Cid, count i
 	return peerOut
 }
 
+// prefixByBits returns prefix of the key with the given length (in bits).
+// if bits == 0, it just returns the whole key.
 func prefixByBits(key []byte, bits int) []byte {
 	if bits == 0 {
 		return key
@@ -518,6 +520,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	// hash multihash for double-hashing implementation
 	mhHash := internal.Sha256Multihash(key)
 	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
+	logger.Infof("finding providers for double-hash key %x", mhHash[:])
 
 	ps := make(map[peer.ID]struct{})
 	psLock := &sync.Mutex{}
@@ -577,6 +580,11 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
+	lookupKey := prefixByBits(mhHash[:], dht.prefixLength)
+	logger.Infof("lookup key %v", mhHash[:])
+	logger.Infof("lookup key prefix %v", lookupKey)
+	logger.Infof("prefix length (bits) %d", dht.prefixLength)
+
 	const isHashed = true
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash[:]), isHashed,
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
@@ -585,13 +593,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				Type: routing.SendingQuery,
 				ID:   p,
 			})
-
-			//var lookupKey []byte
-			//if dht.prefixLength != 0 {
-			lookupKey := prefixByBits(mhHash[:], dht.prefixLength)
-			// } else {
-			// 	lookupKey = mhHash[:]
-			// }
 
 			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, lookupKey)
 			if err != nil {
