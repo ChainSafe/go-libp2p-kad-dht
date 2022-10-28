@@ -513,6 +513,10 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte)
 			continue
 		}
 
+		if numCommonBits(k[len(k)-1], decKey[len(k)-1]) < highestSetBit(k[len(k)-1]) {
+			continue
+		}
+
 		out.setVal(pid, decKey, t)
 	}
 
@@ -526,4 +530,33 @@ func readTimeValue(data []byte) (time.Time, error) {
 	}
 
 	return time.Unix(0, nsec), nil
+}
+
+func numCommonBits(a, b byte) int {
+	// xor last byte to see how many bits in common they have
+	common := a ^ b
+
+	// left shift by 1 bit each iteration
+	// once common becomes 0, return 8 - number of iterations
+	i := 8
+	for {
+		if common == 0 {
+			return i
+		}
+
+		common = common << 1
+		i--
+	}
+}
+
+func highestSetBit(b byte) int {
+	i := 0
+	for {
+		if b == 0 {
+			return i
+		}
+
+		b = b >> 1
+		i++
+	}
 }

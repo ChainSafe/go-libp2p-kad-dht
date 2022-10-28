@@ -319,6 +319,12 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 		resp.ProviderPeers = pb.PeerIDsToPBPeers(dht.host.Network(), dht.peerstore, providers)
 	}
 
+	if len(resp.ProviderPeers) > 20 {
+		logger.Infof("found %d providers, only sending 20", len(resp.ProviderPeers))
+		// only send 20 providers if we find more
+		resp.ProviderPeers = resp.ProviderPeers[:20]
+	}
+
 	if len(resp.ProviderPeers) > 0 {
 		logger.Infof("%s got providers for lookup request for key %x",
 			dht.self,
