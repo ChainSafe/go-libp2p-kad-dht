@@ -491,6 +491,26 @@ func (dht *IpfsDHT) FindProvidersAsync(ctx context.Context, key cid.Cid, count i
 	return peerOut
 }
 
+// prefixByBits returns prefix of the key with the given length (in bits).
+// if bits == 0, it just returns the whole key.
+func prefixByBits(key []byte, bits int) []byte {
+	if bits == 0 {
+		return key
+	}
+
+	if bits >= len(key)*8 {
+		return key
+	}
+
+	res := make([]byte, (bits/8)+1)
+	copy(res[:bits/8], key[:bits/8])
+
+	bitsToKeep := bits % 8
+	bitmask := ^byte(0) >> byte(8-bitsToKeep)
+	res[bits/8] = key[bits/8] & bitmask
+	return res
+}
+
 func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash.Multihash, count int, peerOut chan peer.AddrInfo) {
 	defer close(peerOut)
 
@@ -553,6 +573,8 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
+	lookupKey := prefixByBits(mhHash[:], dht.prefixLength)
+
 	const isHashed = true
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash[:]), isHashed,
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
@@ -561,13 +583,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				Type: routing.SendingQuery,
 				ID:   p,
 			})
-
-			var lookupKey []byte
-			if dht.prefixLength != 0 {
-				lookupKey = mhHash[:dht.prefixLength]
-			} else {
-				lookupKey = mhHash[:]
-			}
 
 			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, lookupKey)
 			if err != nil {
