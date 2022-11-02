@@ -49,9 +49,10 @@ type ProviderManager struct {
 	pstore peerstore.Peerstore
 	dstore *autobatch.Datastore
 
-	newprovs chan *addProv
-	getprovs chan any // note: this is either *getprovs or *getProvsByPrefix
-	proc     goprocess.Process
+	newprovs         chan *addProv
+	getprovs         chan *getProv
+	getProvsByPrefix chan *getProvByPrefix
+	proc             goprocess.Process
 
 	cleanupInterval time.Duration
 }
@@ -103,14 +104,15 @@ type getProv struct {
 type getProvByPrefix struct {
 	ctx  context.Context
 	key  []byte
-	resp chan map[peer.ID][][]byte
+	resp chan map[string][]peer.ID
 }
 
 // NewProviderManager constructor
 func NewProviderManager(ctx context.Context, local peer.ID, ps peerstore.Peerstore, dstore ds.Batching, opts ...Option) (*ProviderManager, error) {
 	pm := new(ProviderManager)
 	pm.self = local
-	pm.getprovs = make(chan any)
+	pm.getprovs = make(chan *getProv)
+	pm.getProvsByPrefix = make(chan *getProvByPrefix)
 	pm.newprovs = make(chan *addProv)
 	pm.pstore = ps
 	pm.dstore = autobatch.NewAutoBatching(dstore, batchBufferSize)
@@ -166,30 +168,25 @@ func (pm *ProviderManager) run(ctx context.Context, proc goprocess.Process) {
 				// as we've updated it since the GC started.
 				gcSkip[mkProvKeyFor(np.key, np.val)] = struct{}{}
 			}
-		case maybeGp := <-pm.getprovs:
-			if gp, ok := maybeGp.(*getProv); ok {
-				provs, err := pm.getProvidersForKey(gp.ctx, gp.key)
-				if err != nil && err != ds.ErrNotFound {
-					log.Error("error reading providers: ", err)
-				}
-
-				// set the cap so the user can't append to this.
-				gp.resp <- provs[0:len(provs):len(provs)]
-				continue
+		case gp := <-pm.getprovs:
+			provs, err := pm.getProvidersForKey(gp.ctx, gp.key)
+			if err != nil && err != ds.ErrNotFound {
+				log.Error("error reading providers: ", err)
 			}
 
-			if gp, ok := maybeGp.(*getProvByPrefix); ok {
-				provs, err := pm.getProviderSetForKey(gp.ctx, gp.key)
-				if err != nil && err != ds.ErrNotFound {
-					log.Error("error reading providers: ", err)
-				}
+			// set the cap so the user can't append to this.
+			gp.resp <- provs[0:len(provs):len(provs)]
+			continue
 
-				// set the cap so the user can't append to this.
-				gp.resp <- provs.providerToKeys
-				continue
+		case gp := <-pm.getProvsByPrefix:
+			provs, err := pm.getProviderSetForKey(gp.ctx, gp.key)
+			if err != nil && err != ds.ErrNotFound {
+				log.Error("error reading providers: ", err)
 			}
 
-			panic("type read from getprovs should be *getProv or *getProvByPrefix")
+			// set the cap so the user can't append to this.
+			gp.resp <- provs.keyToProviders
+			continue
 		case res, ok := <-gcQueryRes:
 			if !ok {
 				if err := gcQuery.Close(); err != nil {
