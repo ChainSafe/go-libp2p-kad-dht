@@ -785,7 +785,7 @@ func (dht *FullRT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err e
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
-	err = dht.ProviderManager.AddProvider(ctx, keyMH, peer.AddrInfo{ID: dht.h.ID()})
+	err = dht.ProviderManager.AddProvider(ctx, mhHash, peer.AddrInfo{ID: dht.h.ID()})
 	if err != nil {
 		return err
 	}

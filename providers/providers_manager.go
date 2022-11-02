@@ -179,7 +179,7 @@ func (pm *ProviderManager) run(ctx context.Context, proc goprocess.Process) {
 			continue
 
 		case gp := <-pm.getProvsByPrefix:
-			provs, err := pm.getProviderSetForKey(gp.ctx, gp.key)
+			provs, err := pm.getProviderSetForPrefix(gp.ctx, gp.key)
 			if err != nil && err != ds.ErrNotFound {
 				log.Error("error reading providers: ", err)
 			}

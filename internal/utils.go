@@ -1,15 +1,19 @@
 package internal
 
 import (
-	"crypto/sha256"
-
 	"github.com/multiformats/go-multihash"
 )
 
-type Hash [32]byte
+const keysize = 32
 
-func Sha256Multihash(mh multihash.Multihash) Hash {
-	return sha256.Sum256(mh)
+func Sha256Multihash(mh multihash.Multihash) multihash.Multihash {
+	prefix := []byte("CR_DOUBLEHASH")
+	mh, err := multihash.Sum(append(prefix, mh...), multihash.DBL_SHA2_256, keysize)
+	if err != nil {
+		// this shouldn't ever happen
+		panic(err)
+	}
+	return mh[len(mh)-keysize:]
 }
 
 // PrefixByBits returns prefix of the key with the given length (in bits).
