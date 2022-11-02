@@ -72,7 +72,7 @@ func (dht *IpfsDHT) handleNewMessage(s network.Stream) bool {
 			}
 			return false
 		}
-		err = req.Unmarshal(msgbytes)
+		err = req.XXX_Unmarshal(msgbytes)
 		r.ReleaseMsg(msgbytes)
 		if err != nil {
 			if c := baseLogger.Check(zap.DebugLevel, "error unmarshaling message"); c != nil {

@@ -97,7 +97,7 @@ func (m *messageSenderImpl) SendRequest(ctx context.Context, p peer.ID, pmes *pb
 
 	stats.Record(ctx,
 		metrics.SentRequests.M(1),
-		metrics.SentBytes.M(int64(pmes.Size())),
+		metrics.SentBytes.M(int64(pmes.XXX_Size())),
 		metrics.OutboundRequestLatency.M(float64(time.Since(start))/float64(time.Millisecond)),
 	)
 	m.host.Peerstore().RecordLatency(p, time.Since(start))
@@ -129,7 +129,7 @@ func (m *messageSenderImpl) SendMessage(ctx context.Context, p peer.ID, pmes *pb
 
 	stats.Record(ctx,
 		metrics.SentMessages.M(1),
-		metrics.SentBytes.M(int64(pmes.Size())),
+		metrics.SentBytes.M(int64(pmes.XXX_Size())),
 	)
 	return nil
 }
@@ -331,7 +331,7 @@ func (ms *peerMessageSender) ctxReadMsg(ctx context.Context, mes *pb.Message) er
 			errc <- err
 			return
 		}
-		errc <- mes.Unmarshal(bytes)
+		errc <- mes.XXX_Unmarshal(bytes)
 	}(ms.r)
 
 	t := time.NewTimer(dhtReadMessageTimeout)
