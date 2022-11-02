@@ -67,7 +67,7 @@ func RawPeerInfosToPBPeers(peers []peer.AddrInfo) []Message_Peer {
 	return pbpeers
 }
 
-// PeersToPBPeers converts given []peer.Peer into a set of []Message_Peer,
+// PeersToPBPeers converts given []peer.Peer into a set of []*Message_Peer,
 // which can be written to a message and sent out. the key thing this function
 // does (in addition to PeersToPBPeers) is set the ConnectionType with
 // information from the given network.Network.
@@ -76,6 +76,25 @@ func PeerInfosToPBPeers(n network.Network, peers []peer.AddrInfo) []Message_Peer
 	for i, pbp := range pbps {
 		c := ConnectionType(n.Connectedness(peers[i].ID))
 		pbp.Connection = c
+	}
+	return pbps
+}
+
+// PeerIDsToPBPeers converts given []peer.Peer into a set of []Message_Peer,
+// which can be written to a message and sent out. the key thing this function
+// does (in addition to PeersToPBPeers) is set the ConnectionType with
+// information from the given network.Network.
+func PeerIDsToPBPeers(n network.Network, ps peerstore.Peerstore, provs []peer.ID) []Message_Peer {
+	pbps := make([]Message_Peer, 0, len(provs))
+	for _, p := range provs {
+		if len(p) == 0 {
+			continue
+		}
+		addrInfo := ps.PeerInfo(p)
+		pbp := peerInfoToPBPeer(addrInfo)
+		c := ConnectionType(n.Connectedness(p))
+		pbp.Connection = c
+		pbps = append(pbps, pbp)
 	}
 	return pbps
 }
@@ -127,25 +146,6 @@ func PeerRoutingInfosToPBPeers(peers []PeerRoutingInfo) []Message_Peer {
 	}
 	return pbpeers
 }
-
-// type PeerWithKeys struct {
-// 	AddrInfo *peer.AddrInfo
-// 	Keys     [][]byte
-// }
-
-// // PBPeersToPeerInfosWithKeys converts given []*Message_Peer into []*PeerWithKeys
-// // Invalid addresses will be silently omitted.
-// func PBPeersToPeerInfosWithKeys(pbps []Message_Peer) []*PeerWithKeys {
-// 	peers := make([]*PeerWithKeys, 0, len(pbps))
-// 	for _, pbp := range pbps {
-// 		ai := PBPeerToPeerInfo(pbp)
-// 		peers = append(peers, &PeerWithKeys{
-// 			AddrInfo: &ai,
-// 			Keys:     pbp.Provides,
-// 		})
-// 	}
-// 	return peers
-// }
 
 // PBPeersToPeerInfos converts given []*Message_Peer into []*peer.AddrInfo
 // Invalid addresses will be silently omitted.

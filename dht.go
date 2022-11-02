@@ -202,7 +202,7 @@ func New(ctx context.Context, h host.Host, options ...Option) (*IpfsDHT, error) 
 	}
 
 	dht.prefixLength = cfg.PrefixLookupLength
-	if dht.prefixLength > 256 {
+	if dht.prefixLength >= 256 {
 		// if prefixLength is greater than the hash length, then just look up the whole hash
 		dht.prefixLength = 0
 	}
@@ -432,7 +432,7 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 // SetPrefixLength sets the prefix length for DHT provider lookups.
 // TODO: not concurrency safe!
 func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
-	if prefixLength > 256 || prefixLength < 0 {
+	if prefixLength >= 256 || prefixLength < 0 {
 		return errors.New("invalid prefix length")
 	}
 
