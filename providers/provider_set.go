@@ -12,12 +12,12 @@ import (
 type providerSet struct {
 	providers      []peer.ID
 	set            map[peer.ID]time.Time
-	providerToKeys map[peer.ID][][]byte // TODO: maybe there's a more efficient way to do this
+	keyToProviders map[string][]peer.ID
 }
 
 func newProviderSet() *providerSet {
 	return &providerSet{
-		providerToKeys: make(map[peer.ID][][]byte),
+		keyToProviders: make(map[string][]peer.ID),
 		set:            make(map[peer.ID]time.Time),
 	}
 }
@@ -28,11 +28,11 @@ func (ps *providerSet) setVal(p peer.ID, key []byte, t time.Time) {
 		ps.providers = append(ps.providers, p)
 	}
 
-	keys, has := ps.providerToKeys[p]
+	provs, has := ps.keyToProviders[string(key)]
 	if !has {
-		ps.providerToKeys[p] = [][]byte{key}
+		ps.keyToProviders[string(key)] = []peer.ID{p}
 	} else {
-		ps.providerToKeys[p] = append(keys, key)
+		ps.keyToProviders[string(key)] = append(provs, p)
 	}
 
 	ps.set[p] = t

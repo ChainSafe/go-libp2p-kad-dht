@@ -309,7 +309,7 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 			return nil, err
 		}
 
-		resp.ProviderPeers = pb.PeerIDsToPBPeersWithKeys(dht.host.Network(), dht.peerstore, provsToKeys)
+		resp.ProvidersByKey = pb.KeyToProvsToPB(dht.host.Network(), dht.peerstore, provsToKeys)
 	} else {
 		// setup providers
 		providers, err := dht.providerStore.GetProviders(ctx, key)
