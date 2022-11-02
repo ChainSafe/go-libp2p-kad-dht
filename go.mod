@@ -125,6 +125,8 @@ require (
 
 replace github.com/libp2p/go-libp2p-kbucket => ../../ChainSafe/go-libp2p-kbucket
 
+replace github.com/ipfs/go-datastore => ../../ChainSafe/go-datastore
+
 // replace github.com/libp2p/go-libp2p-kbucket => github.com/ChainSafe/go-libp2p-kbucket v0.0.0-20220908203920-02442af318da
 // replace github.com/libp2p/go-libp2p-kbucket/keyspace => github.com/ChainSafe/go-libp2p-kbucket/keyspace v0.0.0-20220908203920-02442af318da
 // replace github.com/libp2p/go-libp2p-kbucket/peerdiversity => github.com/ChainSafe/go-libp2p-kbucket/peerdiversity v0.0.0-20220908203920-02442af318da

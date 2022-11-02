@@ -71,7 +71,7 @@ message Message {
 	repeated Peer providerPeers = 9 [(gogoproto.nullable) = false];
 
 	message Providers {
-		repeated Peer peer = 1;
+		repeated Peer peers = 1;
 	}
 
 	// Used to return providers for GET_PROVIDERS prefix lookups

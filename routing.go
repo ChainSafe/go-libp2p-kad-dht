@@ -485,6 +485,26 @@ func (dht *IpfsDHT) FindProvidersAsync(ctx context.Context, key cid.Cid, count i
 	return peerOut
 }
 
+// prefixByBits returns prefix of the key with the given length (in bits).
+// if bits == 0, it just returns the whole key.
+func prefixByBits(key []byte, bits int) []byte {
+	if bits == 0 {
+		return key
+	}
+
+	if bits >= len(key)*8 {
+		return key
+	}
+
+	res := make([]byte, (bits/8)+1)
+	copy(res[:bits/8], key[:bits/8])
+
+	bitsToKeep := bits % 8
+	bitmask := ^byte(0) >> byte(8-bitsToKeep)
+	res[bits/8] = key[bits/8] & bitmask
+	return res
+}
+
 func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash.Multihash, count int, peerOut chan peer.AddrInfo) {
 	defer close(peerOut)
 
@@ -534,6 +554,8 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
+	lookupKey := prefixByBits(mhHash[:], dht.prefixLength)
+
 	const isHashed = true
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash[:]), isHashed,
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
@@ -543,44 +565,36 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				ID:   p,
 			})
 
-			var lookupKey []byte
-			if dht.prefixLength != 0 {
-				lookupKey = mhHash[:dht.prefixLength]
+			var (
+				keyToProvs map[string][]*peer.AddrInfo
+				closer     []*peer.AddrInfo
+				err        error
+			)
+			if dht.prefixLength == 0 {
+				var provs []*peer.AddrInfo
+				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, lookupKey)
+				keyToProvs[string(mhHash[:])] = provs
 			} else {
-				lookupKey = mhHash[:]
+				keyToProvs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey)
 			}
-
-			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, lookupKey)
 			if err != nil {
 				return nil, err
 			}
 
-			logger.Debugf("%d provider entries", len(provs))
+			logger.Debugf("found %d keys with prefix", len(keyToProvs))
+
+			// if this is a prefix lookup, the providers might not actually have
+			// the content we're looking for. discard all that don't
+			provs := keyToProvs[string(mhHash[:])]
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
-				// if this is a prefix lookup, the providers might not actually have
-				// the content we're looking for. discard all that don't
-				if dht.prefixLength > 0 {
-					var hasContent bool
-					for _, key := range prov.Keys {
-						if bytes.Equal(key, mhHash[:]) {
-							hasContent = true
-							break
-						}
-					}
-					if !hasContent {
-						continue
-					}
-				}
-
-				dht.maybeAddAddrs(prov.AddrInfo.ID, prov.AddrInfo.Addrs, peerstore.TempAddrTTL)
+				dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
 				logger.Debugf("got provider: %s", prov)
-				if psTryAdd(prov.AddrInfo.ID) {
+				if psTryAdd(prov.ID) {
 					logger.Debugf("using provider: %s", prov)
 					select {
-					// TODO: what is this for?
-					case peerOut <- *prov.AddrInfo:
+					case peerOut <- *prov:
 					case <-ctx.Done():
 						logger.Debug("context timed out sending more providers")
 						return nil, ctx.Err()
@@ -593,15 +607,15 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			}
 
 			// Give closer peers back to the query to be queried
-			logger.Debugf("got closer peers: %d %s", len(closest), closest)
+			logger.Debugf("got closer peers: %d %s", len(closer), closer)
 
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 				Type:      routing.PeerResponse,
 				ID:        p,
-				Responses: closest,
+				Responses: closer,
 			})
 
-			return closest, nil
+			return closer, nil
 		},
 		func() bool {
 			return !findAll && psSize() >= count

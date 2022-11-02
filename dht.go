@@ -2,6 +2,7 @@ package dht
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -201,6 +202,10 @@ func New(ctx context.Context, h host.Host, options ...Option) (*IpfsDHT, error) 
 	}
 
 	dht.prefixLength = cfg.PrefixLookupLength
+	if dht.prefixLength > 256 {
+		// if prefixLength is greater than the hash length, then just look up the whole hash
+		dht.prefixLength = 0
+	}
 
 	dht.testAddressUpdateProcessing = cfg.TestAddressUpdateProcessing
 
@@ -349,7 +354,7 @@ func makeDHT(ctx context.Context, h host.Host, cfg dhtcfg.Config) (*IpfsDHT, err
 	if cfg.ProviderStore != nil {
 		dht.providerStore = cfg.ProviderStore
 	} else {
-		dht.providerStore, err = providers.NewProviderManager(dht.ctx, h.ID(), dht.peerstore, cfg.Datastore)
+		dht.providerStore, err = providers.NewProviderManager(dht.ctx, h.ID(), h.Peerstore(), cfg.Datastore)
 		if err != nil {
 			return nil, fmt.Errorf("initializing default provider manager (%v)", err)
 		}
@@ -422,6 +427,17 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 	}
 
 	return rt, err
+}
+
+// SetPrefixLength sets the prefix length for DHT provider lookups.
+// TODO: not concurrency safe!
+func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
+	if prefixLength > 256 || prefixLength < 0 {
+		return errors.New("invalid prefix length")
+	}
+
+	dht.prefixLength = prefixLength
+	return nil
 }
 
 // ProviderStore returns the provider storage object for storing and retrieving provider records.

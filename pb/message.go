@@ -80,20 +80,44 @@ func PeerInfosToPBPeers(n network.Network, peers []peer.AddrInfo) []Message_Peer
 	return pbps
 }
 
-// PeerInfosToPBPeersWithKeys performs the same conversion as PeerInfosToPBPeers, except
-// it also adds the keys that the peer providers to the Message_Peer.
-func PeerInfosToPBPeersWithKeys(n network.Network, ps peerstore.Peerstore, provsToKeys map[peer.ID][][]byte) []Message_Peer {
-	pbps := []Message_Peer{}
+// KeyToProvsToPB converts a map of keys to list of peer IDs to an equivalent PB map.
+func KeyToProvsToPB(n network.Network, ps peerstore.Peerstore, keyToProvs map[string][]peer.ID) map[string]*Message_Providers {
+	res := make(map[string]*Message_Providers)
 
-	for p, keys := range provsToKeys {
-		addrInfo := ps.PeerInfo(p)
-		pbp := peerInfoToPBPeer(addrInfo)
-		pbp.Provides = keys
-		c := ConnectionType(n.Connectedness(p))
-		pbp.Connection = c
-		pbps = append(pbps, pbp)
+	for key, peers := range keyToProvs {
+		mps := &Message_Providers{
+			Peers: []*Message_Peer{},
+		}
+
+		for _, p := range peers {
+			addrInfo := ps.PeerInfo(p)
+			pbp := peerInfoToPBPeer(addrInfo)
+			c := ConnectionType(n.Connectedness(p))
+			pbp.Connection = c
+			mps.Peers = append(mps.Peers, &pbp)
+		}
+
+		res[key] = mps
 	}
-	return pbps
+	return res
+}
+
+// PBToKeyToProvs converts a map of keys to Message_Providers to an equivalent map of keys to a list of AddrInfo.
+func PBToKeyToProvs(pbm map[string]*Message_Providers) map[string][]*peer.AddrInfo {
+	res := make(map[string][]*peer.AddrInfo)
+
+	for key, mps := range pbm {
+		addrInfos := []*peer.AddrInfo{}
+
+		for _, p := range mps.Peers {
+			addrInfo := PBPeerToPeerInfo(*p)
+			addrInfos = append(addrInfos, &addrInfo)
+		}
+
+		res[key] = addrInfos
+	}
+
+	return res
 }
 
 func PeerRoutingInfosToPBPeers(peers []PeerRoutingInfo) []Message_Peer {
@@ -104,24 +128,24 @@ func PeerRoutingInfosToPBPeers(peers []PeerRoutingInfo) []Message_Peer {
 	return pbpeers
 }
 
-type PeerWithKeys struct {
-	AddrInfo *peer.AddrInfo
-	Keys     [][]byte
-}
+// type PeerWithKeys struct {
+// 	AddrInfo *peer.AddrInfo
+// 	Keys     [][]byte
+// }
 
-// PBPeersToPeerInfosWithKeys converts given []*Message_Peer into []*PeerWithKeys
-// Invalid addresses will be silently omitted.
-func PBPeersToPeerInfosWithKeys(pbps []Message_Peer) []*PeerWithKeys {
-	peers := make([]*PeerWithKeys, 0, len(pbps))
-	for _, pbp := range pbps {
-		ai := PBPeerToPeerInfo(pbp)
-		peers = append(peers, &PeerWithKeys{
-			AddrInfo: &ai,
-			Keys:     pbp.Provides,
-		})
-	}
-	return peers
-}
+// // PBPeersToPeerInfosWithKeys converts given []*Message_Peer into []*PeerWithKeys
+// // Invalid addresses will be silently omitted.
+// func PBPeersToPeerInfosWithKeys(pbps []Message_Peer) []*PeerWithKeys {
+// 	peers := make([]*PeerWithKeys, 0, len(pbps))
+// 	for _, pbp := range pbps {
+// 		ai := PBPeerToPeerInfo(pbp)
+// 		peers = append(peers, &PeerWithKeys{
+// 			AddrInfo: &ai,
+// 			Keys:     pbp.Provides,
+// 		})
+// 	}
+// 	return peers
+// }
 
 // PBPeersToPeerInfos converts given []*Message_Peer into []*peer.AddrInfo
 // Invalid addresses will be silently omitted.
