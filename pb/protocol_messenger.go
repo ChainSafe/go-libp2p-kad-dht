@@ -156,8 +156,9 @@ func (pm *ProtocolMessenger) GetProvidersByPrefix(
 	ctx context.Context,
 	p peer.ID,
 	key []byte,
+	prefixBitLength int,
 ) (map[string][]*peer.AddrInfo, []*peer.AddrInfo, error) {
-	pmes := NewMessage(Message_GET_PROVIDERS, key, 0)
+	pmes := NewGetProvidersMessage(Message_GET_PROVIDERS, key, prefixBitLength, 0)
 	resp, err := pm.m.SendRequest(ctx, p, pmes)
 	if err != nil {
 		return nil, nil, err

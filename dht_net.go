@@ -116,7 +116,7 @@ func (dht *IpfsDHT) handleNewMessage(s network.Stream) bool {
 		if c := baseLogger.Check(zap.DebugLevel, "handling message"); c != nil {
 			c.Write(zap.String("from", mPeer.String()),
 				zap.Int32("type", int32(req.GetType())),
-				zap.Binary("key", req.GetKey()))
+				zap.Binary("key", req.GetKey().GetKey()))
 		}
 		resp, err := handler(ctx, mPeer, &req)
 		if err != nil {
@@ -124,7 +124,7 @@ func (dht *IpfsDHT) handleNewMessage(s network.Stream) bool {
 			if c := baseLogger.Check(zap.DebugLevel, "error handling message"); c != nil {
 				c.Write(zap.String("from", mPeer.String()),
 					zap.Int32("type", int32(req.GetType())),
-					zap.Binary("key", req.GetKey()),
+					zap.Binary("key", req.GetKey().GetKey()),
 					zap.Error(err))
 			}
 			return false
@@ -133,7 +133,7 @@ func (dht *IpfsDHT) handleNewMessage(s network.Stream) bool {
 		if c := baseLogger.Check(zap.DebugLevel, "handled message"); c != nil {
 			c.Write(zap.String("from", mPeer.String()),
 				zap.Int32("type", int32(req.GetType())),
-				zap.Binary("key", req.GetKey()),
+				zap.Binary("key", req.GetKey().GetKey()),
 				zap.Duration("time", time.Since(startTime)))
 		}
 
@@ -148,7 +148,7 @@ func (dht *IpfsDHT) handleNewMessage(s network.Stream) bool {
 			if c := baseLogger.Check(zap.DebugLevel, "error writing response"); c != nil {
 				c.Write(zap.String("from", mPeer.String()),
 					zap.Int32("type", int32(req.GetType())),
-					zap.Binary("key", req.GetKey()),
+					zap.Binary("key", req.GetKey().GetKey()),
 					zap.Error(err))
 			}
 			return false
@@ -159,7 +159,7 @@ func (dht *IpfsDHT) handleNewMessage(s network.Stream) bool {
 		if c := baseLogger.Check(zap.DebugLevel, "responded to message"); c != nil {
 			c.Write(zap.String("from", mPeer.String()),
 				zap.Int32("type", int32(req.GetType())),
-				zap.Binary("key", req.GetKey()),
+				zap.Binary("key", req.GetKey().GetKey()),
 				zap.Duration("time", elapsedTime))
 		}
 

@@ -20,7 +20,22 @@ type PeerRoutingInfo struct {
 func NewMessage(typ Message_MessageType, key []byte, level int) *Message {
 	m := &Message{
 		Type: typ,
-		Key:  key,
+		Key: &Message_Key{
+			Key: key,
+		},
+	}
+	m.SetClusterLevel(level)
+	return m
+}
+
+// NewGetProvidersMessage constructs a new dht message with given type, key, prefixBitLength and level
+func NewGetProvidersMessage(typ Message_MessageType, key []byte, prefixBitLength int, level int) *Message {
+	m := &Message{
+		Type: typ,
+		Key: &Message_Key{
+			Key:             key,
+			PrefixBitLength: uint32(prefixBitLength),
+		},
 	}
 	m.SetClusterLevel(level)
 	return m

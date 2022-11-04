@@ -707,12 +707,14 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 
 // nearestPeersToQuery returns the routing tables closest peers.
 func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
-	key := pmes.GetKey()
+	key := pmes.GetKey().GetKey()
+	prefixBitLength := pmes.GetKey().GetPrefixBitLength()
 
 	if pmes.GetType() == pb.Message_GET_PROVIDERS {
 		// for GET_PROVIDERS messages, the message key is the hashed multihash, so don't hash it again
-		if len(key) < 32 {
+		if prefixBitLength != 0 {
 			// prefix lookup
+			// TODO: do we need to pass the prefix length?
 			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(key)), count)
 			return closer
 		} else {
