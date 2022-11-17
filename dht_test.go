@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/libp2p/go-libp2p-kad-dht/internal"
 	test "github.com/libp2p/go-libp2p-kad-dht/internal/testing"
 	pb "github.com/libp2p/go-libp2p-kad-dht/pb"
 
@@ -1298,7 +1299,11 @@ func TestClientModeConnect(t *testing.T) {
 
 	c := testCaseCids[0]
 	p := peer.ID("TestPeer")
-	a.ProviderStore().AddProvider(ctx, c.Hash(), peer.AddrInfo{ID: p})
+	mhHash := internal.Sha256Multihash(c.Hash())
+	err := a.ProviderStore().AddProvider(ctx, mhHash[:], peer.AddrInfo{ID: p})
+	if err != nil {
+		t.Fatal(err)
+	}
 	time.Sleep(time.Millisecond * 5) // just in case...
 
 	provs, err := b.FindProviders(ctx, c)

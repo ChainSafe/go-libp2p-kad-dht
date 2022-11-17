@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"sort"
 
+	ks "github.com/ChainSafe/go-keyspace"
 	"github.com/libp2p/go-libp2p/core/peer"
-	ks "github.com/whyrusleeping/go-keyspace"
 )
 
 // PeerState describes the state of a peer ID during the lifecycle of an individual lookup.
@@ -62,6 +62,14 @@ func (sqp *sortedQueryPeerset) Less(i, j int) bool {
 func NewQueryPeerset(key string) *QueryPeerset {
 	return &QueryPeerset{
 		key:    ks.XORKeySpace.Key([]byte(key)),
+		all:    []queryPeerState{},
+		sorted: false,
+	}
+}
+
+func NewQueryPeersetFromHash(hash [32]byte) *QueryPeerset {
+	return &QueryPeerset{
+		key:    ks.XORKeySpace.KeyFromHash(hash),
 		all:    []queryPeerState{},
 		sorted: false,
 	}

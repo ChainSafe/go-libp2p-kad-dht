@@ -34,6 +34,7 @@ import (
 	goprocessctx "github.com/jbenet/goprocess/context"
 	"github.com/multiformats/go-base32"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 )
@@ -683,9 +684,18 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 	}
 }
 
-// nearestPeersToQuery returns the routing tables closest peers.
+// nearestPeersToQuery returns the routing tables closest peers.Digest
 func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
-	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(pmes.GetKey())), count)
+	key := pmes.GetKey()
+	// for GET_PROVIDERS messages, or sometimes FIND_NODE messages,
+	// the message key is the hashed multihash, so don't hash it again
+	decodedMH, err := multihash.Decode(key)
+	if err == nil && decodedMH.Code == multihash.DBL_SHA2_256 {
+		closer := dht.routingTable.NearestPeers(kb.ID(string(decodedMH.Digest)), count)
+		return closer
+	}
+
+	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(key)), count)
 	return closer
 }
 

@@ -377,10 +377,15 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		return fmt.Errorf("invalid cid: undefined")
 	}
 	keyMH := key.Hash()
-	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH))
+	// hash multihash for double-hashing implementation
+	mhHash := internal.Sha256Multihash(keyMH)
+	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
-	dht.providerStore.AddProvider(ctx, keyMH, peer.AddrInfo{ID: dht.self})
+	err = dht.providerStore.AddProvider(ctx, mhHash, peer.AddrInfo{ID: dht.self})
+	if err != nil {
+		return err
+	}
 	if !brdcst {
 		return nil
 	}
@@ -407,7 +412,7 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	}
 
 	var exceededDeadline bool
-	peers, err := dht.GetClosestPeers(closerCtx, string(keyMH))
+	peers, err := dht.GetClosestPeers(closerCtx, string(mhHash[:]))
 	switch err {
 	case context.DeadlineExceeded:
 		// If the _inner_ deadline has been exceeded but the _outer_
@@ -427,8 +432,8 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		wg.Add(1)
 		go func(p peer.ID) {
 			defer wg.Done()
-			logger.Debugf("putProvider(%s, %s)", internal.LoggableProviderRecordBytes(keyMH), p)
-			err := dht.protoMessenger.PutProvider(ctx, p, keyMH, dht.host)
+			logger.Debugf("putProvider(%s, %s)", internal.LoggableProviderRecordBytes(mhHash[:]), p)
+			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host)
 			if err != nil {
 				logger.Debug(err)
 			}
@@ -475,8 +480,6 @@ func (dht *IpfsDHT) FindProvidersAsync(ctx context.Context, key cid.Cid, count i
 	peerOut := make(chan peer.AddrInfo, chSize)
 
 	keyMH := key.Hash()
-
-	logger.Debugw("finding providers", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH))
 	go dht.findProvidersAsyncRoutine(ctx, keyMH, count, peerOut)
 	return peerOut
 }
@@ -485,6 +488,10 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	defer close(peerOut)
 
 	findAll := count == 0
+
+	// hash multihash for double-hashing implementation
+	mhHash := internal.Sha256Multihash(key)
+	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	ps := make(map[peer.ID]struct{})
 	psLock := &sync.Mutex{}
@@ -504,7 +511,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		return len(ps)
 	}
 
-	provs, err := dht.providerStore.GetProviders(ctx, key)
+	provs, err := dht.providerStore.GetProviders(ctx, mhHash)
 	if err != nil {
 		return
 	}
@@ -525,7 +532,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
-	lookupRes, err := dht.runLookupWithFollowup(ctx, string(key),
+	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
 			// For DHT query command
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
@@ -533,7 +540,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				ID:   p,
 			})
 
-			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, key)
+			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, multihash.Multihash(mhHash[:])) // TODO: this isn't a multihash anymore, change GetProvider param type instead?
 			if err != nil {
 				return nil, err
 			}

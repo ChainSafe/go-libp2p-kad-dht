@@ -36,7 +36,10 @@ func TestProviderManager(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := u.Hash([]byte("test"))
-	p.AddProvider(ctx, a, peer.AddrInfo{ID: peer.ID("testingprovider")})
+	err = p.AddProvider(ctx, a, peer.AddrInfo{ID: peer.ID("testingprovider")})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Not cached
 	// TODO verify that cache is empty
@@ -52,8 +55,15 @@ func TestProviderManager(t *testing.T) {
 		t.Fatal("Could not retrieve provider.")
 	}
 
-	p.AddProvider(ctx, a, peer.AddrInfo{ID: peer.ID("testingprovider2")})
-	p.AddProvider(ctx, a, peer.AddrInfo{ID: peer.ID("testingprovider3")})
+	err = p.AddProvider(ctx, a, peer.AddrInfo{ID: peer.ID("testingprovider2")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = p.AddProvider(ctx, a, peer.AddrInfo{ID: peer.ID("testingprovider3")})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// TODO verify that cache is already up to date
 	resp, _ = p.GetProviders(ctx, a)
 	if len(resp) != 3 {
@@ -88,7 +98,10 @@ func TestProvidersDatastore(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		h := u.Hash([]byte(fmt.Sprint(i)))
 		mhs = append(mhs, h)
-		p.AddProvider(ctx, h, peer.AddrInfo{ID: friend})
+		err = p.AddProvider(ctx, h, peer.AddrInfo{ID: friend})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	for _, c := range mhs {
@@ -179,15 +192,27 @@ func TestProvidesExpire(t *testing.T) {
 	}
 
 	for _, h := range mhs[:5] {
-		p.AddProvider(ctx, h, peer.AddrInfo{ID: peers[0]})
-		p.AddProvider(ctx, h, peer.AddrInfo{ID: peers[1]})
+		err = p.AddProvider(ctx, h, peer.AddrInfo{ID: peers[0]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = p.AddProvider(ctx, h, peer.AddrInfo{ID: peers[1]})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	time.Sleep(time.Second / 4)
 
 	for _, h := range mhs[5:] {
-		p.AddProvider(ctx, h, peer.AddrInfo{ID: peers[0]})
-		p.AddProvider(ctx, h, peer.AddrInfo{ID: peers[1]})
+		err = p.AddProvider(ctx, h, peer.AddrInfo{ID: peers[0]})
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = p.AddProvider(ctx, h, peer.AddrInfo{ID: peers[1]})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	for _, h := range mhs {
@@ -289,7 +314,10 @@ func TestLargeProvidersSet(t *testing.T) {
 		h := u.Hash([]byte(fmt.Sprint(i)))
 		mhs = append(mhs, h)
 		for _, pid := range peers {
-			p.AddProvider(ctx, h, peer.AddrInfo{ID: pid})
+			err = p.AddProvider(ctx, h, peer.AddrInfo{ID: pid})
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 
@@ -324,11 +352,20 @@ func TestUponCacheMissProvidersAreReadFromDatastore(t *testing.T) {
 	}
 
 	// add provider
-	pm.AddProvider(ctx, h1, peer.AddrInfo{ID: p1})
+	err = pm.AddProvider(ctx, h1, peer.AddrInfo{ID: p1})
+	if err != nil {
+		t.Fatal(err)
+	}
 	// make the cached provider for h1 go to datastore
-	pm.AddProvider(ctx, h2, peer.AddrInfo{ID: p1})
+	err = pm.AddProvider(ctx, h2, peer.AddrInfo{ID: p1})
+	if err != nil {
+		t.Fatal(err)
+	}
 	// now just offloaded record should be brought back and joined with p2
-	pm.AddProvider(ctx, h1, peer.AddrInfo{ID: p2})
+	err = pm.AddProvider(ctx, h1, peer.AddrInfo{ID: p2})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	h1Provs, _ := pm.GetProviders(ctx, h1)
 	if len(h1Provs) != 2 {
@@ -353,11 +390,20 @@ func TestWriteUpdatesCache(t *testing.T) {
 	}
 
 	// add provider
-	pm.AddProvider(ctx, h1, peer.AddrInfo{ID: p1})
+	err = pm.AddProvider(ctx, h1, peer.AddrInfo{ID: p1})
+	if err != nil {
+		t.Fatal(err)
+	}
 	// force into the cache
-	pm.GetProviders(ctx, h1)
+	_, err = pm.GetProviders(ctx, h1)
+	if err != nil {
+		t.Fatal(err)
+	}
 	// add a second provider
-	pm.AddProvider(ctx, h1, peer.AddrInfo{ID: p2})
+	err = pm.AddProvider(ctx, h1, peer.AddrInfo{ID: p2})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	c1Provs, _ := pm.GetProviders(ctx, h1)
 	if len(c1Provs) != 2 {
