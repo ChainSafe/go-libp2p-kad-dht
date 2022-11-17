@@ -378,7 +378,6 @@ func (pm *ProviderManager) getProviderSetForPrefix(ctx context.Context, k []byte
 
 // loads the ProviderSet out of the datastore
 func loadProviderSet(ctx context.Context, dstore ds.Datastore, k []byte) (*providerSet, error) {
-	// for prefix lookups, this already returns all providers with the prefix, so don't need to modify
 	res, err := dstore.Query(ctx, dsq.Query{Prefix: mkProvKey(k)})
 	if err != nil {
 		return nil, err

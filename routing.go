@@ -552,7 +552,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
-	lookupKey := internal.PrefixByBits(mhHash[:], dht.prefixLength)
+	lookupKey := internal.PrefixByBits(mhHash, dht.prefixLength)
 
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash[:]),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
@@ -569,8 +569,8 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			)
 			if dht.prefixLength == 0 {
 				var provs []*peer.AddrInfo
-				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, lookupKey)
-				keyToProvs[string(mhHash[:])] = provs
+				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, mhHash)
+				keyToProvs[string(mhHash)] = provs
 			} else {
 				keyToProvs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, dht.prefixLength)
 			}
@@ -582,7 +582,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 			// if this is a prefix lookup, the providers might not actually have
 			// the content we're looking for. discard all that don't
-			provs := keyToProvs[string(mhHash[:])]
+			provs := keyToProvs[string(mhHash)]
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {

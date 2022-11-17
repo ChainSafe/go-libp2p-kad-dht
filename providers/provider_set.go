@@ -12,7 +12,7 @@ import (
 type providerSet struct {
 	providers      []peer.ID
 	set            map[peer.ID]time.Time
-	keyToProviders map[string][]peer.ID
+	keyToProviders map[string][]peer.ID // TODO change to map of maps, otherwise there can be duplicate peer IDs
 }
 
 func newProviderSet() *providerSet {
