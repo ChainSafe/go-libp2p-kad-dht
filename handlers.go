@@ -321,6 +321,7 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 	resp := pb.NewMessage(pmes.GetType(), key, pmes.GetClusterLevel())
 
 	if prefixBitLength != 0 {
+		panic("prefixBitLength must be 0")
 		// unlike providerStore.GetProviders(), this call
 		// also returns the keys that the peers provide.
 		provsToKeys, err := dht.providerStore.GetProvidersForPrefix(ctx, key, int(prefixBitLength))
