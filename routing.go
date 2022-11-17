@@ -553,7 +553,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, mhHash)
 				keyToProvs[string(mhHash)] = provs
 			} else {
-				panic("prefixBitLength must be 0")
 				keyToProvs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, dht.prefixLength)
 			}
 			if err != nil {

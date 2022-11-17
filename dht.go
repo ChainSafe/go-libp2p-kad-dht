@@ -720,11 +720,11 @@ func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
 			// TODO: do we need to pass the prefix length?
 			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest)), count)
 			return closer
-		} else {
-			// normal non-prefixed lookup
-			closer := dht.routingTable.NearestPeers(kb.ID(string(decodedMH.Digest)), count)
-			return closer
 		}
+
+		// normal non-prefixed lookup
+		closer := dht.routingTable.NearestPeers(kb.ID(string(decodedMH.Digest)), count)
+		return closer
 	}
 
 	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(key)), count)
