@@ -13,7 +13,7 @@ func Sha256Multihash(mh multihash.Multihash) multihash.Multihash {
 		// this shouldn't ever happen
 		panic(err)
 	}
-	return mh[len(mh)-keysize:]
+	return mh
 }
 
 // PrefixByBits returns prefix of the key with the given length (in bits).

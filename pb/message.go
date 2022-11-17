@@ -20,7 +20,22 @@ type PeerRoutingInfo struct {
 func NewMessage(typ Message_MessageType, key []byte, level int) *Message {
 	m := &Message{
 		Type: typ,
-		Key:  key,
+		Key: &Message_Key{
+			Key: key,
+		},
+	}
+	m.SetClusterLevel(level)
+	return m
+}
+
+// NewGetProvidersMessage constructs a new dht message with given type, key, prefixBitLength and level
+func NewGetProvidersMessage(typ Message_MessageType, key []byte, prefixBitLength int, level int) *Message {
+	m := &Message{
+		Type: typ,
+		Key: &Message_Key{
+			Key:             key,
+			PrefixBitLength: uint32(prefixBitLength),
+		},
 	}
 	m.SetClusterLevel(level)
 	return m
@@ -146,25 +161,6 @@ func PeerRoutingInfosToPBPeers(peers []PeerRoutingInfo) []Message_Peer {
 	}
 	return pbpeers
 }
-
-// type PeerWithKeys struct {
-// 	AddrInfo *peer.AddrInfo
-// 	Keys     [][]byte
-// }
-
-// // PBPeersToPeerInfosWithKeys converts given []*Message_Peer into []*PeerWithKeys
-// // Invalid addresses will be silently omitted.
-// func PBPeersToPeerInfosWithKeys(pbps []Message_Peer) []*PeerWithKeys {
-// 	peers := make([]*PeerWithKeys, 0, len(pbps))
-// 	for _, pbp := range pbps {
-// 		ai := PBPeerToPeerInfo(pbp)
-// 		peers = append(peers, &PeerWithKeys{
-// 			AddrInfo: &ai,
-// 			Keys:     pbp.Provides,
-// 		})
-// 	}
-// 	return peers
-// }
 
 // PBPeersToPeerInfos converts given []*Message_Peer into []*peer.AddrInfo
 // Invalid addresses will be silently omitted.

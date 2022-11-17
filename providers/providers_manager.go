@@ -34,7 +34,7 @@ var log = logging.Logger("providers")
 type ProviderStore interface {
 	AddProvider(ctx context.Context, key []byte, prov peer.ID) error
 	GetProviders(ctx context.Context, key []byte) ([]peer.ID, error)
-	GetProvidersForPrefix(ctx context.Context, key []byte) (map[string][]peer.ID, error)
+	GetProvidersForPrefix(ctx context.Context, key []byte, prefixBitLength int) (map[string][]peer.ID, error)
 }
 
 // ProviderManager adds and pulls providers out of the datastore,
@@ -99,9 +99,10 @@ type getProv struct {
 }
 
 type getProvByPrefix struct {
-	ctx  context.Context
-	key  []byte
-	resp chan map[string][]peer.ID
+	ctx             context.Context
+	key             []byte
+	prefixBitLength int
+	resp            chan map[string][]peer.ID
 }
 
 // NewProviderManager constructor
@@ -175,7 +176,7 @@ func (pm *ProviderManager) run(ctx context.Context, proc goprocess.Process) {
 			continue
 
 		case gp := <-pm.getProvsByPrefix:
-			provs, err := pm.getProviderSetForPrefix(gp.ctx, gp.key)
+			provs, err := pm.getProviderSetForPrefix(gp.ctx, gp.key, gp.prefixBitLength)
 			if err != nil && err != ds.ErrNotFound {
 				log.Error("error reading providers: ", err)
 			}
@@ -311,11 +312,12 @@ func (pm *ProviderManager) GetProviders(ctx context.Context, k []byte) ([]peer.I
 
 // GetProvidersForPrefix returns the set of providers with the given prefix, as well
 // as the full key they provide.
-func (pm *ProviderManager) GetProvidersForPrefix(ctx context.Context, k []byte) (map[string][]peer.ID, error) {
+func (pm *ProviderManager) GetProvidersForPrefix(ctx context.Context, k []byte, prefixBitLength int) (map[string][]peer.ID, error) {
 	gp := &getProvByPrefix{
-		ctx:  ctx,
-		key:  k,
-		resp: make(chan map[string][]peer.ID, 1), // buffered to prevent sender from blocking
+		ctx:             ctx,
+		key:             k,
+		prefixBitLength: prefixBitLength,
+		resp:            make(chan map[string][]peer.ID, 1), // buffered to prevent sender from blocking
 	}
 	select {
 	case <-ctx.Done():
@@ -358,13 +360,13 @@ func (pm *ProviderManager) getProviderSetForKey(ctx context.Context, k []byte) (
 }
 
 // returns the ProviderSet if it already exists on cache, otherwise loads it from datasatore
-func (pm *ProviderManager) getProviderSetForPrefix(ctx context.Context, k []byte) (*providerSet, error) {
+func (pm *ProviderManager) getProviderSetForPrefix(ctx context.Context, k []byte, prefixBitLength int) (*providerSet, error) {
 	cached, ok := pm.cache.Get(string(k))
 	if ok {
 		return cached.(*providerSet), nil
 	}
 
-	pset, err := loadProviderSetByPrefix(ctx, pm.dstore, k)
+	pset, err := loadProviderSetByPrefix(ctx, pm.dstore, k, prefixBitLength)
 	if err != nil {
 		return nil, err
 	}
@@ -405,7 +407,7 @@ func loadProviderSet(ctx context.Context, dstore ds.Datastore, k []byte) (*provi
 
 // loads the ProviderSet out of the datastore
 // TODO: add prefix length so we know how many leading 0s to include on the final byte, if any.
-func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte) (*providerSet, error) {
+func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte, prefixBitLength int) (*providerSet, error) {
 	// for prefix lookups, this already returns all providers with the prefix, so don't need to modify
 	// note: we slice off the last byte since the prefix is by *bits*, so we need to manually xor and check
 	// how many bits match in the final byte.
@@ -429,6 +431,12 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte)
 			continue
 		}
 
+		// check that the last byte of the lookup key and the corresponding byte in the db key
+		// match; ie that the bits set in the prefixed key match that of the db key
+		// if they don't, then ignore this record
+		// TODO update this to use prefixBitLength, as we currently only check up to the highest
+		// set bit in the last byte of the lookup key (and thus ignore zeroes that may be part of
+		// the prefix)
 		if numCommonBits(k[len(k)-1], decKey[len(k)-1]) < highestSetBit(k[len(k)-1]) {
 			continue
 		}
