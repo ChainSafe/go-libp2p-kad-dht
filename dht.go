@@ -35,6 +35,7 @@ import (
 	goprocessctx "github.com/jbenet/goprocess/context"
 	"github.com/multiformats/go-base32"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 )
@@ -705,21 +706,23 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 	}
 }
 
-// nearestPeersToQuery returns the routing tables closest peers.
+// nearestPeersToQuery returns the routing tables closest peers.Digest
 func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
 	key := pmes.GetKey().GetKey()
 	prefixBitLength := pmes.GetKey().GetPrefixBitLength()
 
-	if pmes.GetType() == pb.Message_GET_PROVIDERS {
-		// for GET_PROVIDERS messages, the message key is the hashed multihash, so don't hash it again
+	// for GET_PROVIDERS messages, or sometimes FIND_NODE messages,
+	// the message key is the hashed multihash, so don't hash it again
+	decodedMH, err := multihash.Decode(key)
+	if err == nil && decodedMH.Code == multihash.DBL_SHA2_256 {
 		if prefixBitLength != 0 {
 			// prefix lookup
 			// TODO: do we need to pass the prefix length?
-			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(key)), count)
+			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest)), count)
 			return closer
 		} else {
 			// normal non-prefixed lookup
-			closer := dht.routingTable.NearestPeers(kb.ID(string(key)), count)
+			closer := dht.routingTable.NearestPeers(kb.ID(string(decodedMH.Digest)), count)
 			return closer
 		}
 	}
