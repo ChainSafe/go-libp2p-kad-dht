@@ -34,6 +34,7 @@ import (
 	goprocessctx "github.com/jbenet/goprocess/context"
 	"github.com/multiformats/go-base32"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multihash"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 )
@@ -683,21 +684,31 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 	}
 }
 
-// nearestPeersToQuery returns the routing tables closest peers.
-func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
+// nearestPeersToQuery returns the routing tables closest peers.Digest
+func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) ([]peer.ID, error) {
 	if pmes.GetType() == pb.Message_GET_PROVIDERS {
+		key := pmes.GetKey()
 		// for GET_PROVIDERS messages, the message key is the hashed multihash, so don't hash it again
-		closer := dht.routingTable.NearestPeers(kb.ID(string(pmes.GetKey())), count)
-		return closer
+		decodedMH, err := multihash.Decode(key)
+		if err != nil {
+			return nil, fmt.Errorf("invalid multihash %s in GET_PROVIDERS: %w", key, err)
+		}
+
+		closer := dht.routingTable.NearestPeers(kb.ID(string(decodedMH.Digest)), count)
+		return closer, nil
 	}
 
 	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(pmes.GetKey())), count)
-	return closer
+	return closer, nil
 }
 
 // betterPeersToQuery returns nearestPeersToQuery with some additional filtering
 func (dht *IpfsDHT) betterPeersToQuery(pmes *pb.Message, from peer.ID, count int) []peer.ID {
-	closer := dht.nearestPeersToQuery(pmes, count)
+	closer, err := dht.nearestPeersToQuery(pmes, count)
+	if err != nil {
+		// TODO: return err
+		return nil
+	}
 
 	// no node? nil
 	if closer == nil {
