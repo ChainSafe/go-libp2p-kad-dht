@@ -942,7 +942,7 @@ func (dht *FullRT) ProvideMany(ctx context.Context, keys []multihash.Multihash) 
 
 	fn := func(ctx context.Context, p, k peer.ID) error {
 		pmes := dht_pb.NewMessage(dht_pb.Message_ADD_PROVIDER, multihash.Multihash(k), 0)
-		pmes.ProviderPeers = pbPeers
+		pmes.ProviderPeers = dht_pb.PeersToPeersWithKey(pbPeers)
 
 		return dht.messageSender.SendMessage(ctx, p, pmes)
 	}
@@ -1288,26 +1288,20 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 		})
 
 		var (
-			keyToProvs = make(map[string][]*peer.AddrInfo)
-			closer     []*peer.AddrInfo
-			err        error
+			provs  []*peer.AddrInfo
+			closer []*peer.AddrInfo
+			err    error
 		)
 		if dht.prefixLength == 0 {
-			var provs []*peer.AddrInfo
 			provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, lookupKey)
-			keyToProvs[string(mhHash[:])] = provs
 		} else {
-			keyToProvs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, dht.prefixLength)
+			provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, dht.prefixLength)
 		}
 		if err != nil {
 			return err
 		}
 
-		logger.Debugf("found %d keys with prefix", len(keyToProvs))
-
-		// if this is a prefix lookup, the providers might not actually have
-		// the content we're looking for. discard all that don't
-		provs := keyToProvs[string(mhHash[:])]
+		logger.Debugf("found %d keys with prefix", len(provs))
 
 		// Add unique providers from request, up to 'count'
 		for _, prov := range provs {

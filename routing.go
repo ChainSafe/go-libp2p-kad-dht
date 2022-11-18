@@ -427,6 +427,8 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		return err
 	}
 
+	logger.Infof("\n\tProvide mhash=%s closepeers=%v", mhHash, peers)
+
 	wg := sync.WaitGroup{}
 	for _, p := range peers {
 		wg.Add(1)
@@ -533,7 +535,15 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
-	lookupKey := internal.PrefixByBits(mhHash, dht.prefixLength)
+	// decodedMH, err := multihash.Decode(mhHash)
+	// if err != nil {
+	// 	panic("failed to decode multihash hashed by us!")
+	// }
+
+	// TODO: 2 bytes added b/c multihash code, this is sus
+	lookupKey := internal.PrefixByBits(mhHash, dht.prefixLength+16)
+
+	logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, dht.prefixLength, lookupKey, len(lookupKey))
 
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash[:]),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
@@ -544,26 +554,22 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			})
 
 			var (
-				keyToProvs = make(map[string][]*peer.AddrInfo)
-				closer     []*peer.AddrInfo
-				err        error
+				provs  []*peer.AddrInfo
+				closer []*peer.AddrInfo
+				err    error
 			)
 			if dht.prefixLength == 0 {
-				var provs []*peer.AddrInfo
 				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, mhHash)
-				keyToProvs[string(mhHash)] = provs
 			} else {
-				keyToProvs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, dht.prefixLength)
+				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, dht.prefixLength)
 			}
 			if err != nil {
+				logger.Errorf("findProvidersAsync error=%s", err)
 				return nil, err
 			}
 
-			logger.Debugf("found %d keys with prefix", len(keyToProvs))
-
-			// if this is a prefix lookup, the providers might not actually have
-			// the content we're looking for. discard all that don't
-			provs := keyToProvs[string(mhHash)]
+			logger.Debugf("found %d keys with prefix", len(provs))
+			logger.Infof("findProvidersAsync provsCount=%d", len(provs))
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {

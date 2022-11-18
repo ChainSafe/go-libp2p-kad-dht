@@ -127,7 +127,7 @@ func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key mul
 	}
 
 	pmes := NewMessage(Message_ADD_PROVIDER, key, 0)
-	pmes.ProviderPeers = RawPeerInfosToPBPeers([]peer.AddrInfo{pi})
+	pmes.ProviderPeers = PeersToPeersWithKey(RawPeerInfosToPBPeers([]peer.AddrInfo{pi}))
 
 	return pm.m.SendMessage(ctx, p, pmes)
 }
@@ -144,7 +144,7 @@ func (pm *ProtocolMessenger) GetProviders(
 	if err != nil {
 		return nil, nil, err
 	}
-	provs := PBPeersToPeerInfos(resp.GetProviderPeers())
+	provs := PBPeersToAddrInfos(resp.GetProviderPeers())
 	closerPeers := PBPeersToPeerInfos(resp.GetCloserPeers())
 	return provs, closerPeers, nil
 }
@@ -157,13 +157,16 @@ func (pm *ProtocolMessenger) GetProvidersByPrefix(
 	p peer.ID,
 	key []byte,
 	prefixBitLength int,
-) (map[string][]*peer.AddrInfo, []*peer.AddrInfo, error) {
+) ([]*peer.AddrInfo, []*peer.AddrInfo, error) {
 	pmes := NewGetProvidersMessage(Message_GET_PROVIDERS, key, prefixBitLength, 0)
 	resp, err := pm.m.SendRequest(ctx, p, pmes)
 	if err != nil {
 		return nil, nil, err
 	}
-	provs := PBToKeyToProvs(resp.ProvidersByKey)
+
+	// if this is a prefix lookup, the providers might not actually have
+	// the content we're looking for. discard all that don't
+	provs := PBPeersWithKeyToAddrInfos(resp.GetProviderPeers(), key)
 	closerPeers := PBPeersToPeerInfos(resp.GetCloserPeers())
 	return provs, closerPeers, nil
 }

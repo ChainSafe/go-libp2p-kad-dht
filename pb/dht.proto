@@ -52,10 +52,6 @@ message Message {
 		uint32 prefixBitLength = 2;
 	}
 
-	message Providers {
-		repeated Peer peers = 1;
-	}
-
 	// defines what type of message it is.
 	MessageType type = 1;
 
@@ -73,12 +69,23 @@ message Message {
 
 	// Used to return Providers
 	// GET_VALUE, ADD_PROVIDER, GET_PROVIDERS
-	repeated Peer providerPeers = 9 [(gogoproto.nullable) = false];
+	repeated PeerWithKey providerPeers = 9 [(gogoproto.nullable) = false];
 
 	// defines what coral cluster level this query/response belongs to.
 	// in case we want to implement coral's cluster rings in the future.
 	int32 clusterLevelRaw = 10;
 
-	// Used to return providers for GET_PROVIDERS prefix lookups
-	map<string, Providers> providersByKey = 11;
+	message PeerWithKey {
+		// ID of a given peer.
+		bytes id = 1 [(gogoproto.customtype) = "byteString", (gogoproto.nullable) = false];
+
+		// multiaddrs for a given peer
+		repeated bytes addrs = 2;
+
+		// used to signal the sender's connection capabilities to the peer
+		ConnectionType connection = 3;
+
+		// key provided by peer; only set for GET_PROVIDER prefix lookups
+		bytes key = 4;
+	}
 }

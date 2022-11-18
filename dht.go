@@ -2,7 +2,6 @@ package dht
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -433,9 +432,9 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 // SetPrefixLength sets the prefix length for DHT provider lookups.
 // TODO: not concurrency safe!
 func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
-	if prefixLength >= 256 || prefixLength < 0 {
-		return errors.New("invalid prefix length")
-	}
+	// if prefixLength > 256 || prefixLength < 0 {
+	// 	return errors.New("invalid prefix length")
+	// }
 
 	dht.prefixLength = prefixLength
 	return nil
@@ -711,6 +710,8 @@ func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
 	key := pmes.GetKey().GetKey()
 	prefixBitLength := pmes.GetKey().GetPrefixBitLength()
 
+	//logger.Infof("nearestPeersToQuery key=%x prefixlen=%d keylen=%d", key, prefixBitLength, len(key))
+
 	// for GET_PROVIDERS messages, or sometimes FIND_NODE messages,
 	// the message key is the hashed multihash, so don't hash it again
 	decodedMH, err := multihash.Decode(key)
@@ -756,6 +757,8 @@ func (dht *IpfsDHT) betterPeersToQuery(pmes *pb.Message, from peer.ID, count int
 
 		filtered = append(filtered, clp)
 	}
+
+	//logger.Infof("betterPeersToQuery peers=%v", filtered)
 
 	// ok seems like closer nodes
 	return filtered

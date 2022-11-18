@@ -1,6 +1,8 @@
 package dht_pb
 
 import (
+	"bytes"
+
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
@@ -72,6 +74,18 @@ func PBPeerToPeerInfo(pbp Message_Peer) peer.AddrInfo {
 	}
 }
 
+func PeersToPeersWithKey(in []Message_Peer) []Message_PeerWithKey {
+	pbpeers := make([]Message_PeerWithKey, len(in))
+	for i, p := range in {
+		pbpeers[i] = Message_PeerWithKey{
+			Id:         p.Id,
+			Addrs:      p.Addrs,
+			Connection: p.Connection,
+		}
+	}
+	return pbpeers
+}
+
 // RawPeerInfosToPBPeers converts a slice of Peers into a slice of *Message_Peers,
 // ready to go out on the wire.
 func RawPeerInfosToPBPeers(peers []peer.AddrInfo) []Message_Peer {
@@ -114,41 +128,66 @@ func PeerIDsToPBPeers(n network.Network, ps peerstore.Peerstore, provs []peer.ID
 	return pbps
 }
 
-// KeyToProvsToPB converts a map of keys to list of peer IDs to an equivalent PB map.
-func KeyToProvsToPB(n network.Network, ps peerstore.Peerstore, keyToProvs map[string][]peer.ID) map[string]*Message_Providers {
-	res := make(map[string]*Message_Providers)
+func peerInfoToPBPeerWithKey(p peer.AddrInfo, key []byte) Message_PeerWithKey {
+	var pbp Message_PeerWithKey
+
+	pbp.Addrs = make([][]byte, len(p.Addrs))
+	for i, maddr := range p.Addrs {
+		pbp.Addrs[i] = maddr.Bytes() // Bytes, not String. Compressed.
+	}
+	pbp.Id = byteString(p.ID)
+	pbp.Key = key
+	return pbp
+}
+
+// KeyToProvsToPB converts a map of keys to list of peer IDs to a slice of Message_PeerWithKey.
+func KeyToProvsToPB(n network.Network, ps peerstore.Peerstore, keyToProvs map[string][]peer.ID) []Message_PeerWithKey {
+	res := []Message_PeerWithKey{}
 
 	for key, peers := range keyToProvs {
-		mps := &Message_Providers{
-			Peers: []*Message_Peer{},
-		}
-
 		for _, p := range peers {
 			addrInfo := ps.PeerInfo(p)
-			pbp := peerInfoToPBPeer(addrInfo)
+			pbp := peerInfoToPBPeerWithKey(addrInfo, []byte(key))
 			c := ConnectionType(n.Connectedness(p))
 			pbp.Connection = c
-			mps.Peers = append(mps.Peers, &pbp)
+			res = append(res, pbp)
 		}
-
-		res[key] = mps
 	}
+
 	return res
 }
 
-// PBToKeyToProvs converts a map of keys to Message_Providers to an equivalent map of keys to a list of AddrInfo.
-func PBToKeyToProvs(pbm map[string]*Message_Providers) map[string][]*peer.AddrInfo {
-	res := make(map[string][]*peer.AddrInfo)
+// PBPeersToAddrInfos converts list of Message_PeerWithKey to a list of peer.AddrInfo.
+func PBPeersToAddrInfos(pbm []Message_PeerWithKey) []*peer.AddrInfo {
+	res := []*peer.AddrInfo{}
 
-	for key, mps := range pbm {
-		addrInfos := []*peer.AddrInfo{}
+	for _, mp := range pbm {
+		addrInfo := PBPeerToPeerInfo(Message_Peer{
+			Id:         mp.Id,
+			Addrs:      mp.Addrs,
+			Connection: mp.Connection,
+		})
+		res = append(res, &addrInfo)
+	}
 
-		for _, p := range mps.Peers {
-			addrInfo := PBPeerToPeerInfo(*p)
-			addrInfos = append(addrInfos, &addrInfo)
+	return res
+}
+
+// PBPeersToAddrInfos converts list of Message_PeerWithKey to a list of peer.AddrInfo that have the given key.
+func PBPeersWithKeyToAddrInfos(pbm []Message_PeerWithKey, key []byte) []*peer.AddrInfo {
+	res := []*peer.AddrInfo{}
+
+	for _, mp := range pbm {
+		if !bytes.Equal(mp.Key, key) {
+			continue
 		}
 
-		res[key] = addrInfos
+		addrInfo := PBPeerToPeerInfo(Message_Peer{
+			Id:         mp.Id,
+			Addrs:      mp.Addrs,
+			Connection: mp.Connection,
+		})
+		res = append(res, &addrInfo)
 	}
 
 	return res

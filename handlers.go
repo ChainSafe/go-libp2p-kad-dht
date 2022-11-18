@@ -319,6 +319,11 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 	}
 
 	resp := pb.NewMessage(pmes.GetType(), key, pmes.GetClusterLevel())
+	if prefixBitLength != 0 { // TODO idk if we need this?
+		resp.Key.PrefixBitLength = prefixBitLength
+	}
+
+	logger.Infof("handleGetProviders key=%x self=%s", key, dht.self)
 
 	if prefixBitLength != 0 {
 		// unlike providerStore.GetProviders(), this call
@@ -328,14 +333,16 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 			return nil, err
 		}
 
-		resp.ProvidersByKey = pb.KeyToProvsToPB(dht.host.Network(), dht.peerstore, provsToKeys)
+		resp.ProviderPeers = pb.KeyToProvsToPB(dht.host.Network(), dht.peerstore, provsToKeys)
+		logger.Infof("handleGetProviders(prefix) found provs count=%d", len(resp.ProviderPeers))
 	} else {
 		// setup providers
 		providers, err := dht.providerStore.GetProviders(ctx, key)
 		if err != nil {
 			return nil, err
 		}
-		resp.ProviderPeers = pb.PeerInfosToPBPeers(dht.host.Network(), providers)
+		resp.ProviderPeers = pb.PeersToPeersWithKey(pb.PeerInfosToPBPeers(dht.host.Network(), providers))
+		logger.Infof("handleGetProviders found provs count=%d", len(resp.ProviderPeers))
 	}
 
 	// Also send closer peers.
@@ -360,7 +367,7 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 	logger.Debugw("adding provider", "from", p, "key", internal.LoggableProviderRecordBytes(key))
 
 	// add provider should use the address given in the message
-	pinfos := pb.PBPeersToPeerInfos(pmes.GetProviderPeers())
+	pinfos := pb.PBPeersToAddrInfos(pmes.GetProviderPeers())
 	for _, pi := range pinfos {
 		if pi.ID != p {
 			// we should ignore this provider record! not from originator.
@@ -379,6 +386,8 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			return nil, err
 		}
 	}
+
+	logger.Infof("handleAddProvider key=%x self=%s", key, dht.self)
 
 	return nil, nil
 }
