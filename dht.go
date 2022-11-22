@@ -710,8 +710,6 @@ func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
 	key := pmes.GetKey().GetKey()
 	prefixBitLength := pmes.GetKey().GetPrefixBitLength()
 
-	//logger.Infof("nearestPeersToQuery key=%x prefixlen=%d keylen=%d", key, prefixBitLength, len(key))
-
 	// for GET_PROVIDERS messages, or sometimes FIND_NODE messages,
 	// the message key is the hashed multihash, so don't hash it again
 	decodedMH, err := multihash.Decode(key)
@@ -757,8 +755,6 @@ func (dht *IpfsDHT) betterPeersToQuery(pmes *pb.Message, from peer.ID, count int
 
 		filtered = append(filtered, clp)
 	}
-
-	//logger.Infof("betterPeersToQuery peers=%v", filtered)
 
 	// ok seems like closer nodes
 	return filtered

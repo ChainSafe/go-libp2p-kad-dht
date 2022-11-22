@@ -323,7 +323,7 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 		resp.Key.PrefixBitLength = prefixBitLength
 	}
 
-	logger.Infof("handleGetProviders key=%x self=%s", key, dht.self)
+	logger.Infof("handleGetProviders key=%x prefixLen=%d self=%s", key, prefixBitLength, dht.self)
 
 	if prefixBitLength != 0 {
 		// unlike providerStore.GetProviders(), this call

@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -293,7 +294,7 @@ func mkProvKeyFor(k []byte, p peer.ID) string {
 }
 
 func mkProvKey(k []byte) string {
-	return ProvidersKeyPrefix + base32.RawStdEncoding.EncodeToString(k)
+	return ProvidersKeyPrefix + hex.EncodeToString(k)
 }
 
 // GetProviders returns the set of providers for the given key.
@@ -418,7 +419,12 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 	// for prefix lookups, this already returns all providers with the prefix, so don't need to modify
 	// note: we slice off the last byte since the prefix is by *bits*, so we need to manually xor and check
 	// how many bits match in the final byte.
-	res, err := dstore.Query(ctx, dsq.Query{Prefix: mkProvKey(k[:len(k)-1])})
+	key := mkProvKey(k)
+	prefixKey := mkProvKey(k[:len(k)-1])
+	log.Errorf("%s", key)
+	log.Errorf("%s", prefixKey)
+
+	res, err := dstore.Query(ctx, dsq.Query{Prefix: prefixKey})
 	if err != nil {
 		return nil, err
 	}
@@ -444,9 +450,9 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 		// TODO update this to use prefixBitLength, as we currently only check up to the highest
 		// set bit in the last byte of the lookup key (and thus ignore zeroes that may be part of
 		// the prefix)
-		if numCommonBits(k[len(k)-1], decKey[len(k)-1]) < highestSetBit(k[len(k)-1]) {
-			continue
-		}
+		// if numCommonBits(k[len(k)-1], decKey[len(k)-1]) < highestSetBit(k[len(k)-1]) {
+		// 	continue
+		// }
 
 		out.setVal(pid, decKey, t)
 	}
@@ -476,9 +482,10 @@ func handleQueryKey(ctx context.Context, dstore ds.Datastore, e dsq.Result, now 
 
 	lix := strings.LastIndex(e.Key, "/")
 
+	// decode peer ID
 	decstr, err := base32.RawStdEncoding.DecodeString(e.Key[lix+1:])
 	if err != nil {
-		log.Error("base32 decoding error: ", err)
+		log.Error("hex decoding error: ", err)
 		err = dstore.Delete(ctx, ds.RawKey(e.Key))
 		if err != nil && err != ds.ErrNotFound {
 			return "", nil, time.Time{}, fmt.Errorf("failed to remove provider record from disk: %w", err)
@@ -487,7 +494,8 @@ func handleQueryKey(ctx context.Context, dstore ds.Datastore, e dsq.Result, now 
 
 	pid := peer.ID(decstr)
 
-	decKey, err := base32.RawStdEncoding.DecodeString(e.Key[len(ProvidersKeyPrefix):lix])
+	// decode provided key
+	decKey, err := hex.DecodeString(e.Key[len(ProvidersKeyPrefix):lix])
 	if err != nil {
 		log.Error("base32 decoding error: ", err)
 		err = dstore.Delete(ctx, ds.RawKey(e.Key))

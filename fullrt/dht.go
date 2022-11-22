@@ -1295,7 +1295,7 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 		if dht.prefixLength == 0 {
 			provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, lookupKey)
 		} else {
-			provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, dht.prefixLength)
+			provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, dht.prefixLength)
 		}
 		if err != nil {
 			return err

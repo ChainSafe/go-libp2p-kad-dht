@@ -31,6 +31,10 @@ func PrefixByBits(key []byte, bits int) []byte {
 	copy(res[:bits/8], key[:bits/8])
 
 	bitsToKeep := bits % 8
+	if bitsToKeep == 0 {
+		return res[:bits/8]
+	}
+
 	bitmask := ^byte(0) >> byte(8-bitsToKeep)
 	res[bits/8] = key[bits/8] & bitmask
 	return res

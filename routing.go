@@ -535,11 +535,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
-	// decodedMH, err := multihash.Decode(mhHash)
-	// if err != nil {
-	// 	panic("failed to decode multihash hashed by us!")
-	// }
-
 	// TODO: 2 bytes added b/c multihash code, this is sus
 	lookupKey := internal.PrefixByBits(mhHash, dht.prefixLength+16)
 
@@ -561,7 +556,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			if dht.prefixLength == 0 {
 				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, mhHash)
 			} else {
-				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, dht.prefixLength)
+				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, dht.prefixLength+16)
 			}
 			if err != nil {
 				logger.Errorf("findProvidersAsync error=%s", err)
