@@ -540,8 +540,11 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, dht.prefixLength, lookupKey, len(lookupKey))
 
-	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash[:]),
+	runLookupWithFollowupCalls := 0
+	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
+			runLookupWithFollowupCalls++
+
 			// For DHT query command
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 				Type: routing.SendingQuery,
@@ -564,7 +567,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			}
 
 			logger.Debugf("found %d keys with prefix", len(provs))
-			logger.Infof("findProvidersAsync provsCount=%d", len(provs))
+			logger.Infof("findProvidersAsync provsCount=%d closerCount=%d", len(provs), len(closer))
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
@@ -600,6 +603,8 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			return !findAll && psSize() >= count
 		},
 	)
+
+	logger.Infof("runLookupWithFollowup call count %d", runLookupWithFollowupCalls)
 
 	if err == nil && ctx.Err() == nil {
 		dht.refreshRTIfNoShortcut(kb.ConvertKey(string(key)), lookupRes)

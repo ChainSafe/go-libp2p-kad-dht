@@ -717,6 +717,10 @@ func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
 		if prefixBitLength != 0 {
 			// prefix lookup
 			// TODO: do we need to pass the prefix length?
+			if prefixBitLength%8 != 0 {
+				closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest[:len(decodedMH.Digest)-1])), count)
+				return closer
+			}
 			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest)), count)
 			return closer
 		}

@@ -151,19 +151,22 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 	var (
 		targetKadID []byte
 		isHashed    bool
+		count       int
 	)
 
 	decodedMH, err := multihash.Decode([]byte(target))
 	if err != nil || decodedMH.Code != multihash.DBL_SHA2_256 {
 		// the target isn't a double hash, so hash it again
 		targetKadID = kb.ConvertKey(target)
+		count = dht.bucketSize
 	} else if decodedMH.Code == multihash.DBL_SHA2_256 {
 		// the target is a double hash, so use the 32-byte digest
 		targetKadID = kb.ID(decodedMH.Digest)
 		isHashed = true
+		count = dht.bucketSize * 2 // actually just increase this for prefix lookups only.
 	}
 
-	seedPeers := dht.routingTable.NearestPeers(targetKadID, dht.bucketSize)
+	seedPeers := dht.routingTable.NearestPeers(targetKadID, count)
 	if len(seedPeers) == 0 {
 		routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 			Type:  routing.QueryError,
@@ -171,6 +174,7 @@ func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn
 		})
 		return nil, kb.ErrLookupFailure
 	}
+	logger.Infof("runQuery NearestPeers %v", seedPeers)
 
 	var qpset *qpeerset.QueryPeerset
 	if isHashed {
@@ -396,6 +400,8 @@ func (q *query) terminate(ctx context.Context, cancel context.CancelFunc, reason
 	if q.terminated {
 		return
 	}
+
+	logger.Warnf("query.terminate reason %s", reason)
 
 	PublishLookupEvent(ctx,
 		NewLookupEvent(

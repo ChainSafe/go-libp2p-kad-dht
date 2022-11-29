@@ -419,10 +419,10 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 	// for prefix lookups, this already returns all providers with the prefix, so don't need to modify
 	// note: we slice off the last byte since the prefix is by *bits*, so we need to manually xor and check
 	// how many bits match in the final byte.
-	key := mkProvKey(k)
+	//key := mkProvKey(k)
 	prefixKey := mkProvKey(k[:len(k)-1])
-	log.Errorf("%s", key)
-	log.Errorf("%s", prefixKey)
+	//log.Errorf("%s", key)
+	log.Infof("%s", prefixKey)
 
 	res, err := dstore.Query(ctx, dsq.Query{Prefix: prefixKey})
 	if err != nil {
@@ -432,11 +432,14 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 
 	now := time.Now()
 	out := newProviderSet()
+	i := 0
 	for {
 		e, ok := res.NextSync()
 		if !ok {
 			break
 		}
+
+		log.Errorf("loadProviderSetByPrefix iter=%d", i)
 
 		pid, decKey, t, err := handleQueryKey(ctx, dstore, e, now)
 		if err != nil {
@@ -455,6 +458,7 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 		// }
 
 		out.setVal(pid, decKey, t)
+		i++
 	}
 
 	return out, nil
