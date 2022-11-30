@@ -415,7 +415,6 @@ func loadProviderSet(ctx context.Context, dstore ds.Datastore, k []byte) (*provi
 }
 
 // loads the ProviderSet out of the datastore
-// TODO: add prefix length so we know how many leading 0s to include on the final byte, if any.
 func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte, prefixBitLength int) (*providerSet, error) {
 	// for prefix lookups, this already returns all providers with the prefix, so don't need to modify
 	// note: we slice off the last byte since the prefix is by *bits*, so we need to manually xor and check
