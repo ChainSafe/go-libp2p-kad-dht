@@ -144,7 +144,6 @@ func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key mul
 	pmes.ProviderPeers = PeersToPeersWithKey(RawPeerInfosToPBPeers([]peer.AddrInfo{pi}))
 	pmes.ProviderPeers[0].Signature = sig
 	pmes.ProviderPeers[0].PublicKey = pbPubKey
-
 	return pm.m.SendMessage(ctx, p, pmes)
 }
 

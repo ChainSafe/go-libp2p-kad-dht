@@ -119,7 +119,6 @@ func PeerIDsToPBPeers(n network.Network, ps peerstore.Peerstore, provs []peer.ID
 		if len(p) == 0 {
 			continue
 		}
-
 		addrInfo := ps.PeerInfo(p)
 		pbp := peerInfoToPBPeer(addrInfo)
 		c := ConnectionType(n.Connectedness(p))
