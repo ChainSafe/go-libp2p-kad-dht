@@ -2,6 +2,7 @@ package dht
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -35,7 +36,6 @@ import (
 	"github.com/multiformats/go-base32"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
-	"github.com/multiformats/go-varint"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 )
@@ -433,9 +433,9 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 // SetPrefixLength sets the prefix length for DHT provider lookups.
 // TODO: not concurrency safe!
 func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
-	// if prefixLength > 256 || prefixLength < 0 {
-	// 	return errors.New("invalid prefix length")
-	// }
+	if prefixLength > 256 || prefixLength < 0 {
+		return errors.New("invalid prefix length")
+	}
 
 	dht.prefixLength = prefixLength
 	return nil
@@ -707,84 +707,48 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 }
 
 // nearestPeersToQuery returns the routing tables closest peers.Digest
-func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
+func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) ([]peer.ID, error) {
 	key := pmes.GetKey().GetKey()
 	prefixBitLength := pmes.GetKey().GetPrefixBitLength()
 
 	if prefixBitLength != 0 {
-		// read multihash code
-		code, c, err := varint.FromUvarint(key)
+		key, err := internal.DecodePrefixedKey(key)
 		if err != nil {
-			logger.Errorf("failed to decode key: %s", err)
-			return []peer.ID{}
+			return nil, err
 		}
-
-		if c == 0 {
-			logger.Errorf("key was empty!!!")
-			return []peer.ID{}
-		}
-
-		if code != multihash.DBL_SHA2_256 {
-			logger.Errorf("expected code to be DBL_SHA2_256")
-			return []peer.ID{}
-		}
-
-		// read encoded digest length
-		key = key[c:]
-		_, c, err = varint.FromUvarint(key)
-		if err != nil {
-			logger.Errorf("failed to decode key: %s", err)
-			return []peer.ID{}
-		}
-
-		if c >= len(key) {
-			logger.Errorf("we somehow read more bytes than what's in the buffer")
-			return []peer.ID{}
-		}
-
-		// key should now be the start of the digest
-		key = key[c:]
 
 		// prefix lookup
-		// TODO: do we need to pass the prefix length?
+		// TODO: pass the prefix length?
 		if prefixBitLength%8 != 0 {
 			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(key[:len(key)-1])), count)
-			return closer
+			return closer, nil
 		}
 
 		closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(key)), count)
-		return closer
+		return closer, nil
 	}
 
 	// for GET_PROVIDERS messages, or sometimes FIND_NODE messages,
 	// the message key is the hashed multihash, so don't hash it again
 	decodedMH, err := multihash.Decode(key)
 	if err == nil && decodedMH.Code == multihash.DBL_SHA2_256 {
-		// if prefixBitLength != 0 {
-		// 	// prefix lookup
-		// 	// TODO: do we need to pass the prefix length?
-		// 	if prefixBitLength%8 != 0 {
-		// 		logger.Infof("calling NearestPeersToPrefix")
-		// 		closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest[:len(decodedMH.Digest)-1])), count)
-		// 		return closer
-		// 	}
-		// 	logger.Infof("calling NearestPeersToPrefix")
-		// 	closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest)), count)
-		// 	return closer
-		// }
-
 		// normal non-prefixed lookup
 		closer := dht.routingTable.NearestPeers(kb.ID(string(decodedMH.Digest)), count)
-		return closer
+		return closer, nil
 	}
 
+	// non-prefixed, non double-hashed lookup
 	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(key)), count)
-	return closer
+	return closer, nil
 }
 
 // betterPeersToQuery returns nearestPeersToQuery with some additional filtering
 func (dht *IpfsDHT) betterPeersToQuery(pmes *pb.Message, from peer.ID, count int) []peer.ID {
-	closer := dht.nearestPeersToQuery(pmes, count)
+	closer, err := dht.nearestPeersToQuery(pmes, count)
+	if err != nil {
+		logger.Errorf("key decoding error: %w", err)
+		return nil
+	}
 
 	// no node? nil
 	if closer == nil {

@@ -427,8 +427,6 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		return err
 	}
 
-	logger.Infof("\n\tProvide mhash=%s closepeers=%v", mhHash, peers)
-
 	wg := sync.WaitGroup{}
 	for _, p := range peers {
 		wg.Add(1)
@@ -493,10 +491,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	// hash multihash for double-hashing implementation
 	mhHash := internal.Sha256Multihash(key)
-	// decodedMH, err := multihash.Decode(key)
-	// if err != nil {
-	// 	panic("failed to decode our own multihash")
-	// }
 	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	ps := make(map[peer.ID]struct{})
@@ -539,10 +533,11 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
-	// TODO: 2 bytes added b/c multihash code, this is sus
+	// note: 2 bytes are added b/c of the multihash code + digest length; if the multihash
+	// length changes in the future, this might break.
 	lookupKey := internal.PrefixByBits(mhHash, dht.prefixLength+16)
 
-	logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, dht.prefixLength, lookupKey, len(lookupKey))
+	//logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, dht.prefixLength, lookupKey, len(lookupKey))
 
 	runLookupWithFollowupCalls := 0
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash),
@@ -566,17 +561,17 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, dht.prefixLength+16)
 			}
 			if err != nil {
-				logger.Errorf("findProvidersAsync error=%s", err)
 				return nil, err
 			}
 
 			logger.Debugf("found %d keys with prefix", len(provs))
-			logger.Infof("findProvidersAsync provsCount=%d closerCount=%d", len(provs), len(closer))
+			//logger.Infof("findProvidersAsync provsCount=%d closerCount=%d", len(provs), len(closer))
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
 				dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
 				logger.Debugf("got provider: %s", prov)
+
 				if psTryAdd(prov.ID) {
 					logger.Errorf("using provider: %s key %s", prov, key)
 					select {
@@ -601,27 +596,12 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				Responses: closer,
 			})
 
-			// // prefix lookup: only return closer peers that are on the lookup path
-			// closest := []*peer.AddrInfo{}
-			// for _, p := range closer {
-			// 	cpl := kb.CommonPrefixLen(kb.ID(p.ID)[:32], kb.ID(decodedMH.Digest))
-			// 	logger.Infof("cpl for peer %s: %d", p.ID, cpl)
-			// 	if cpl >= dht.prefixLength/8 {
-			// 		logger.Infof("added peer to closest %s", p.ID)
-			// 		closest = append(closest, p)
-			// 	}
-			// }
-
-			closest := closer
-
-			return closest, nil
+			return closer, nil
 		},
 		func() bool {
 			return !findAll && psSize() >= count
 		},
 	)
-
-	logger.Infof("runLookupWithFollowup call count %d", runLookupWithFollowupCalls)
 
 	if err == nil && ctx.Err() == nil {
 		dht.refreshRTIfNoShortcut(kb.ConvertKey(string(key)), lookupRes)

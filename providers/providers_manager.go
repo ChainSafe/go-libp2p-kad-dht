@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -419,10 +420,7 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 	// for prefix lookups, this already returns all providers with the prefix, so don't need to modify
 	// note: we slice off the last byte since the prefix is by *bits*, so we need to manually xor and check
 	// how many bits match in the final byte.
-	//key := mkProvKey(k)
 	prefixKey := mkProvKey(k[:len(k)-1])
-	//log.Errorf("%s", key)
-	//log.Infof("%s", prefixKey)
 
 	res, err := dstore.Query(ctx, dsq.Query{Prefix: prefixKey})
 	if err != nil {
@@ -439,8 +437,6 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 			break
 		}
 
-		//log.Errorf("loadProviderSetByPrefix iter=%d", i)
-
 		pid, decKey, t, err := handleQueryKey(ctx, dstore, e, now)
 		if err != nil {
 			log.Debugf("failed to handle query key: %s", err)
@@ -450,12 +446,9 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 		// check that the last byte of the lookup key and the corresponding byte in the db key
 		// match; ie that the bits set in the prefixed key match that of the db key
 		// if they don't, then ignore this record
-		// TODO update this to use prefixBitLength, as we currently only check up to the highest
-		// set bit in the last byte of the lookup key (and thus ignore zeroes that may be part of
-		// the prefix)
-		// if numCommonBits(k[len(k)-1], decKey[len(k)-1]) < highestSetBit(k[len(k)-1]) {
-		// 	continue
-		// }
+		if !prefixesMatch(k, decKey, prefixBitLength) {
+			continue
+		}
 
 		out.setVal(pid, decKey, t)
 		i++
@@ -520,6 +513,29 @@ func readTimeValue(data []byte) (time.Time, error) {
 	return time.Unix(0, nsec), nil
 }
 
+// prefixesMatch returns true if the bits up to `prefixBitLength` match.
+func prefixesMatch(a, b []byte, prefixBitLength int) bool {
+	if prefixBitLength == 0 {
+		return true
+	}
+
+	if len(a) == 0 || len(b) == 0 {
+		return false
+	}
+
+	byteLen := prefixBitLength / 8
+	if len(a) < byteLen+1 || len(b) < byteLen+1 {
+		return false
+	}
+
+	if !bytes.Equal(a[:byteLen], b[:byteLen]) {
+		return false
+	}
+
+	cb := numCommonBits(a[byteLen], b[byteLen])
+	return cb >= prefixBitLength%8
+}
+
 func numCommonBits(a, b byte) int {
 	// xor last byte to see how many bits in common they have
 	common := a ^ b
@@ -534,17 +550,5 @@ func numCommonBits(a, b byte) int {
 
 		common = common << 1
 		i--
-	}
-}
-
-func highestSetBit(b byte) int {
-	i := 0
-	for {
-		if b == 0 {
-			return i
-		}
-
-		b = b >> 1
-		i++
 	}
 }

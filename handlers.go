@@ -319,11 +319,7 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 	}
 
 	resp := pb.NewMessage(pmes.GetType(), key, pmes.GetClusterLevel())
-	if prefixBitLength != 0 { // TODO idk if we need this?
-		resp.Key.PrefixBitLength = prefixBitLength
-	}
-
-	logger.Infof("handleGetProviders key=%x prefixLen=%d self=%s", key, prefixBitLength, dht.self)
+	logger.Debugf("handleGetProviders key=%x prefixLen=%d self=%s", key, prefixBitLength, dht.self)
 
 	if prefixBitLength != 0 {
 		// unlike providerStore.GetProviders(), this call
@@ -334,7 +330,7 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 		}
 
 		resp.ProviderPeers = pb.KeyToProvsToPB(dht.host.Network(), dht.peerstore, provsToKeys)
-		logger.Infof("handleGetProviders(prefix) found provs count=%d", len(resp.ProviderPeers))
+		//logger.Infof("handleGetProviders(prefix) found provs count=%d", len(resp.ProviderPeers))
 	} else {
 		// setup providers
 		providers, err := dht.providerStore.GetProviders(ctx, key)
@@ -342,7 +338,7 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 			return nil, err
 		}
 		resp.ProviderPeers = pb.PeersToPeersWithKey(pb.PeerInfosToPBPeers(dht.host.Network(), providers))
-		logger.Infof("handleGetProviders found provs count=%d", len(resp.ProviderPeers))
+		//logger.Infof("handleGetProviders found provs count=%d", len(resp.ProviderPeers))
 	}
 
 	// Also send closer peers.
@@ -386,8 +382,6 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			return nil, err
 		}
 	}
-
-	logger.Infof("handleAddProvider key=%x self=%s", key, dht.self)
 
 	return nil, nil
 }
