@@ -537,7 +537,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	// length changes in the future, this might break.
 	lookupKey := internal.PrefixByBits(mhHash, dht.prefixLength+16)
 
-	//logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, dht.prefixLength, lookupKey, len(lookupKey))
+	logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, dht.prefixLength, lookupKey, len(lookupKey))
 
 	runLookupWithFollowupCalls := 0
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash),
@@ -565,7 +565,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			}
 
 			logger.Debugf("found %d keys with prefix", len(provs))
-			//logger.Infof("findProvidersAsync provsCount=%d closerCount=%d", len(provs), len(closer))
+			logger.Infof("findProvidersAsync provsCount=%d closerCount=%d", len(provs), len(closer))
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {

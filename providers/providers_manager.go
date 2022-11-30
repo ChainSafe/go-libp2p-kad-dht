@@ -524,12 +524,20 @@ func prefixesMatch(a, b []byte, prefixBitLength int) bool {
 	}
 
 	byteLen := prefixBitLength / 8
-	if len(a) < byteLen+1 || len(b) < byteLen+1 {
+	if prefixBitLength%8 == 0 && (len(a) < byteLen || len(b) < byteLen) {
+		return false
+	}
+
+	if prefixBitLength%8 != 0 && (len(a) < byteLen+1 || len(b) < byteLen+1) {
 		return false
 	}
 
 	if !bytes.Equal(a[:byteLen], b[:byteLen]) {
 		return false
+	}
+
+	if prefixBitLength%8 == 0 {
+		return true
 	}
 
 	cb := numCommonBits(a[byteLen], b[byteLen])
