@@ -457,7 +457,7 @@ func (dht *IpfsDHT) FindProviders(ctx context.Context, c cid.Cid) ([]peer.AddrIn
 	}
 
 	var providers []peer.AddrInfo
-	for p := range dht.FindProvidersAsync(ctx, c, dht.bucketSize) {
+	for p := range dht.FindProvidersAsync(ctx, c, 0) {
 		providers = append(providers, p)
 	}
 	return providers, nil
@@ -493,6 +493,10 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	// hash multihash for double-hashing implementation
 	mhHash := internal.Sha256Multihash(key)
+	// decodedMH, err := multihash.Decode(key)
+	// if err != nil {
+	// 	panic("failed to decode our own multihash")
+	// }
 	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	ps := make(map[peer.ID]struct{})
@@ -574,16 +578,16 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
 				logger.Debugf("got provider: %s", prov)
 				if psTryAdd(prov.ID) {
-					logger.Debugf("using provider: %s", prov)
+					logger.Errorf("using provider: %s key %s", prov, key)
 					select {
 					case peerOut <- *prov:
 					case <-ctx.Done():
-						logger.Debug("context timed out sending more providers")
+						logger.Error("context timed out sending more providers")
 						return nil, ctx.Err()
 					}
 				}
 				if !findAll && psSize() >= count {
-					logger.Debugf("got enough providers (%d/%d)", psSize(), count)
+					logger.Infof("got enough providers (%d/%d)", psSize(), count)
 					return nil, nil
 				}
 			}
@@ -597,7 +601,20 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				Responses: closer,
 			})
 
-			return closer, nil
+			// // prefix lookup: only return closer peers that are on the lookup path
+			// closest := []*peer.AddrInfo{}
+			// for _, p := range closer {
+			// 	cpl := kb.CommonPrefixLen(kb.ID(p.ID)[:32], kb.ID(decodedMH.Digest))
+			// 	logger.Infof("cpl for peer %s: %d", p.ID, cpl)
+			// 	if cpl >= dht.prefixLength/8 {
+			// 		logger.Infof("added peer to closest %s", p.ID)
+			// 		closest = append(closest, p)
+			// 	}
+			// }
+
+			closest := closer
+
+			return closest, nil
 		},
 		func() bool {
 			return !findAll && psSize() >= count

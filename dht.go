@@ -35,6 +35,7 @@ import (
 	"github.com/multiformats/go-base32"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/multiformats/go-multihash"
+	"github.com/multiformats/go-varint"
 	"go.opencensus.io/tag"
 	"go.uber.org/zap"
 )
@@ -710,20 +711,67 @@ func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
 	key := pmes.GetKey().GetKey()
 	prefixBitLength := pmes.GetKey().GetPrefixBitLength()
 
+	if prefixBitLength != 0 {
+		// read multihash code
+		code, c, err := varint.FromUvarint(key)
+		if err != nil {
+			logger.Errorf("failed to decode key: %s", err)
+			return []peer.ID{}
+		}
+
+		if c == 0 {
+			logger.Errorf("key was empty!!!")
+			return []peer.ID{}
+		}
+
+		if code != multihash.DBL_SHA2_256 {
+			logger.Errorf("expected code to be DBL_SHA2_256")
+			return []peer.ID{}
+		}
+
+		// read encoded digest length
+		key = key[c:]
+		_, c, err = varint.FromUvarint(key)
+		if err != nil {
+			logger.Errorf("failed to decode key: %s", err)
+			return []peer.ID{}
+		}
+
+		if c >= len(key) {
+			logger.Errorf("we somehow read more bytes than what's in the buffer")
+			return []peer.ID{}
+		}
+
+		// key should now be the start of the digest
+		key = key[c:]
+
+		// prefix lookup
+		// TODO: do we need to pass the prefix length?
+		if prefixBitLength%8 != 0 {
+			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(key[:len(key)-1])), count)
+			return closer
+		}
+
+		closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(key)), count)
+		return closer
+	}
+
 	// for GET_PROVIDERS messages, or sometimes FIND_NODE messages,
 	// the message key is the hashed multihash, so don't hash it again
 	decodedMH, err := multihash.Decode(key)
 	if err == nil && decodedMH.Code == multihash.DBL_SHA2_256 {
-		if prefixBitLength != 0 {
-			// prefix lookup
-			// TODO: do we need to pass the prefix length?
-			if prefixBitLength%8 != 0 {
-				closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest[:len(decodedMH.Digest)-1])), count)
-				return closer
-			}
-			closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest)), count)
-			return closer
-		}
+		// if prefixBitLength != 0 {
+		// 	// prefix lookup
+		// 	// TODO: do we need to pass the prefix length?
+		// 	if prefixBitLength%8 != 0 {
+		// 		logger.Infof("calling NearestPeersToPrefix")
+		// 		closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest[:len(decodedMH.Digest)-1])), count)
+		// 		return closer
+		// 	}
+		// 	logger.Infof("calling NearestPeersToPrefix")
+		// 	closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(decodedMH.Digest)), count)
+		// 	return closer
+		// }
 
 		// normal non-prefixed lookup
 		closer := dht.routingTable.NearestPeers(kb.ID(string(decodedMH.Digest)), count)

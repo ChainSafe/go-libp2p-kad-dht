@@ -422,7 +422,7 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 	//key := mkProvKey(k)
 	prefixKey := mkProvKey(k[:len(k)-1])
 	//log.Errorf("%s", key)
-	log.Infof("%s", prefixKey)
+	//log.Infof("%s", prefixKey)
 
 	res, err := dstore.Query(ctx, dsq.Query{Prefix: prefixKey})
 	if err != nil {
@@ -439,7 +439,7 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 			break
 		}
 
-		log.Errorf("loadProviderSetByPrefix iter=%d", i)
+		//log.Errorf("loadProviderSetByPrefix iter=%d", i)
 
 		pid, decKey, t, err := handleQueryKey(ctx, dstore, e, now)
 		if err != nil {
