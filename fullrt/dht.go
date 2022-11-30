@@ -95,8 +95,6 @@ type FullRT struct {
 	timeoutPerOp time.Duration
 
 	bulkSendParallelism int
-
-	prefixLength int
 }
 
 // NewFullRT creates a DHT client that tracks the full network. It takes a protocol prefix for the given network,
@@ -187,8 +185,6 @@ func NewFullRT(h host.Host, protocolPrefix protocol.ID, options ...Option) (*Ful
 		crawlerInterval: time.Minute * 60,
 
 		bulkSendParallelism: 20,
-
-		prefixLength: dhtcfg.PrefixLookupLength,
 	}
 
 	rt.wg.Add(1)
@@ -1278,8 +1274,6 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 	queryctx, cancelquery := context.WithCancel(ctx)
 	defer cancelquery()
 
-	lookupKey := internal.PrefixByBits(mhHash[:], dht.prefixLength)
-
 	fn := func(ctx context.Context, p peer.ID) error {
 		// For DHT query command
 		routing.PublishQueryEvent(ctx, &routing.QueryEvent{
@@ -1292,16 +1286,12 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 			closer []*peer.AddrInfo
 			err    error
 		)
-		if dht.prefixLength == 0 {
-			provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, lookupKey)
-		} else {
-			provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, dht.prefixLength)
-		}
+		provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, key)
 		if err != nil {
 			return err
 		}
 
-		logger.Debugf("found %d keys with prefix", len(provs))
+		logger.Debugf("%d provider entries", len(provs))
 
 		// Add unique providers from request, up to 'count'
 		for _, prov := range provs {

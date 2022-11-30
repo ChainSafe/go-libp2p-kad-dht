@@ -153,7 +153,8 @@ type IpfsDHT struct {
 
 	// length of prefix of keys for provider lookups
 	// if 0, the whole key is used.
-	prefixLength int
+	prefixLength   int
+	prefixLengthMu sync.RWMutex
 }
 
 // Assert that IPFS assumptions about interfaces aren't broken. These aren't a
@@ -431,13 +432,14 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 }
 
 // SetPrefixLength sets the prefix length for DHT provider lookups.
-// TODO: not concurrency safe!
 func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
 	if prefixLength > 256 || prefixLength < 0 {
 		return errors.New("invalid prefix length")
 	}
 
+	dht.prefixLengthMu.Lock()
 	dht.prefixLength = prefixLength
+	dht.prefixLengthMu.Unlock()
 	return nil
 }
 

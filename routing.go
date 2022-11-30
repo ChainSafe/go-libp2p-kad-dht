@@ -489,6 +489,10 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	findAll := count == 0
 
+	dht.prefixLengthMu.RLock()
+	prefixLength := dht.prefixLength
+	dht.prefixLengthMu.RUnlock()
+
 	// hash multihash for double-hashing implementation
 	mhHash := internal.Sha256Multihash(key)
 	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
@@ -535,9 +539,9 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	// note: 2 bytes are added b/c of the multihash code + digest length; if the multihash
 	// length changes in the future, this might break.
-	lookupKey := internal.PrefixByBits(mhHash, dht.prefixLength+16)
+	lookupKey := internal.PrefixByBits(mhHash, prefixLength+16)
 
-	logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, dht.prefixLength, lookupKey, len(lookupKey))
+	logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, prefixLength, lookupKey, len(lookupKey))
 
 	runLookupWithFollowupCalls := 0
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash),
@@ -555,10 +559,10 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				closer []*peer.AddrInfo
 				err    error
 			)
-			if dht.prefixLength == 0 {
+			if prefixLength == 0 {
 				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, mhHash)
 			} else {
-				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, dht.prefixLength+16)
+				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, prefixLength+16)
 			}
 			if err != nil {
 				return nil, err
