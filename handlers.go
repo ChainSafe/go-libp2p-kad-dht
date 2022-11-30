@@ -389,8 +389,6 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 			logger.Debugw("failed to verify signature", "from", p, "peer", pi.ID)
 			continue
 		}
-		// pinfos := pb.PBPeersToAddrInfos(pmes.GetProviderPeers())
-		// for _, pi := range pinfos {
 
 		err = dht.providerStore.AddProvider(ctx, key, pi.ID)
 		if err != nil {
