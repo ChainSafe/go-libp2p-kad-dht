@@ -12,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	pstore "github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/core/routing"
+	"github.com/multiformats/go-multihash"
 
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p-kad-dht/qpeerset"
@@ -76,9 +77,9 @@ type lookupWithFollowupResult struct {
 //
 // After the lookup is complete the query function is run (unless stopped) against all of the top K peers from the
 // lookup that have not already been successfully queried.
-func (dht *IpfsDHT) runLookupWithFollowup(ctx context.Context, target string, isHashed bool, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
+func (dht *IpfsDHT) runLookupWithFollowup(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// run the query
-	lookupRes, err := dht.runQuery(ctx, target, isHashed, queryFn, stopFn)
+	lookupRes, err := dht.runQuery(ctx, target, queryFn, stopFn)
 	if err != nil {
 		return nil, err
 	}
@@ -145,13 +146,21 @@ processFollowUp:
 	return lookupRes, nil
 }
 
-func (dht *IpfsDHT) runQuery(ctx context.Context, target string, isHashed bool, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
+func (dht *IpfsDHT) runQuery(ctx context.Context, target string, queryFn queryFn, stopFn stopFn) (*lookupWithFollowupResult, error) {
 	// pick the K closest peers to the key in our Routing table.
+	var (
+		targetKadID []byte
+		isHashed    bool
+	)
 
-	targetKadID := kb.ID(target)
-	if !isHashed {
-		// this sha256 hashes `target`, so don't hash `target` if it's already been hashed
+	decodedMH, err := multihash.Decode([]byte(target))
+	if err != nil || decodedMH.Code != multihash.DBL_SHA2_256 {
+		// the target isn't a double hash, so hash it again
 		targetKadID = kb.ConvertKey(target)
+	} else if decodedMH.Code == multihash.DBL_SHA2_256 {
+		// the target is a double hash, so use the 32-byte digest
+		targetKadID = kb.ID(decodedMH.Digest)
+		isHashed = true
 	}
 
 	seedPeers := dht.routingTable.NearestPeers(targetKadID, dht.bucketSize)
@@ -406,7 +415,7 @@ func (q *query) terminate(ctx context.Context, cancel context.CancelFunc, reason
 // queryPeer does not access the query state in queryPeers!
 func (q *query) queryPeer(ctx context.Context, ch chan<- *queryUpdate, p peer.ID) {
 	defer q.waitGroup.Done()
-	dialCtx, queryCtx := ctx, ctx
+	dialCtx, queryCtx := ctx, q.ctx
 
 	// dial the peer
 	if err := q.dht.dialPeer(dialCtx, p); err != nil {

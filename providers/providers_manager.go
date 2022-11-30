@@ -1,8 +1,10 @@
 package providers
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -34,7 +36,7 @@ var log = logging.Logger("providers")
 type ProviderStore interface {
 	AddProvider(ctx context.Context, key []byte, prov peer.ID) error
 	GetProviders(ctx context.Context, key []byte) ([]peer.ID, error)
-	GetProvidersForPrefix(ctx context.Context, key []byte) (map[peer.ID][][]byte, error)
+	GetProvidersForPrefix(ctx context.Context, key []byte, prefixBitLength int) (map[string][]peer.ID, error)
 }
 
 // ProviderManager adds and pulls providers out of the datastore,
@@ -46,9 +48,10 @@ type ProviderManager struct {
 	cache  lru.LRUCache
 	dstore *autobatch.Datastore
 
-	newprovs chan *addProv
-	getprovs chan any // note: this is either *getprovs or *getProvsByPrefix
-	proc     goprocess.Process
+	newprovs         chan *addProv
+	getprovs         chan *getProv
+	getProvsByPrefix chan *getProvByPrefix
+	proc             goprocess.Process
 
 	cleanupInterval time.Duration
 }
@@ -98,16 +101,18 @@ type getProv struct {
 }
 
 type getProvByPrefix struct {
-	ctx  context.Context
-	key  []byte
-	resp chan map[peer.ID][][]byte
+	ctx             context.Context
+	key             []byte
+	prefixBitLength int
+	resp            chan map[string][]peer.ID
 }
 
 // NewProviderManager constructor
 func NewProviderManager(ctx context.Context, local peer.ID, dstore ds.Batching, opts ...Option) (*ProviderManager, error) {
 	pm := new(ProviderManager)
 	pm.self = local
-	pm.getprovs = make(chan any)
+	pm.getprovs = make(chan *getProv)
+	pm.getProvsByPrefix = make(chan *getProvByPrefix)
 	pm.newprovs = make(chan *addProv)
 	pm.dstore = autobatch.NewAutoBatching(dstore, batchBufferSize)
 	cache, err := lru.NewLRU(lruCacheSize, nil)
@@ -162,30 +167,25 @@ func (pm *ProviderManager) run(ctx context.Context, proc goprocess.Process) {
 				// as we've updated it since the GC started.
 				gcSkip[mkProvKeyFor(np.key, np.val)] = struct{}{}
 			}
-		case maybeGp := <-pm.getprovs:
-			if gp, ok := maybeGp.(*getProv); ok {
-				provs, err := pm.getProvidersForKey(gp.ctx, gp.key)
-				if err != nil && err != ds.ErrNotFound {
-					log.Error("error reading providers: ", err)
-				}
-
-				// set the cap so the user can't append to this.
-				gp.resp <- provs[0:len(provs):len(provs)]
-				continue
+		case gp := <-pm.getprovs:
+			provs, err := pm.getProvidersForKey(gp.ctx, gp.key)
+			if err != nil && err != ds.ErrNotFound {
+				log.Error("error reading providers: ", err)
 			}
 
-			if gp, ok := maybeGp.(*getProvByPrefix); ok {
-				provs, err := pm.getProviderSetForPrefix(gp.ctx, gp.key)
-				if err != nil && err != ds.ErrNotFound {
-					log.Error("error reading providers: ", err)
-				}
+			// set the cap so the user can't append to this.
+			gp.resp <- provs[0:len(provs):len(provs)]
+			continue
 
-				// set the cap so the user can't append to this.
-				gp.resp <- provs.providerToKeys
-				continue
+		case gp := <-pm.getProvsByPrefix:
+			provs, err := pm.getProviderSetForPrefix(gp.ctx, gp.key, gp.prefixBitLength)
+			if err != nil && err != ds.ErrNotFound {
+				log.Error("error reading providers: ", err)
 			}
 
-			panic("type read from getprovs should be *getProv or *getProvByPrefix")
+			// set the cap so the user can't append to this.
+			gp.resp <- provs.keyToProviders
+			continue
 		case res, ok := <-gcQueryRes:
 			if !ok {
 				if err := gcQuery.Close(); err != nil {
@@ -288,7 +288,7 @@ func mkProvKeyFor(k []byte, p peer.ID) string {
 }
 
 func mkProvKey(k []byte) string {
-	return ProvidersKeyPrefix + base32.RawStdEncoding.EncodeToString(k)
+	return ProvidersKeyPrefix + hex.EncodeToString(k)
 }
 
 // GetProviders returns the set of providers for the given key.
@@ -314,16 +314,17 @@ func (pm *ProviderManager) GetProviders(ctx context.Context, k []byte) ([]peer.I
 
 // GetProvidersForPrefix returns the set of providers with the given prefix, as well
 // as the full key they provide.
-func (pm *ProviderManager) GetProvidersForPrefix(ctx context.Context, k []byte) (map[peer.ID][][]byte, error) {
+func (pm *ProviderManager) GetProvidersForPrefix(ctx context.Context, k []byte, prefixBitLength int) (map[string][]peer.ID, error) {
 	gp := &getProvByPrefix{
-		ctx:  ctx,
-		key:  k,
-		resp: make(chan map[peer.ID][][]byte, 1), // buffered to prevent sender from blocking
+		ctx:             ctx,
+		key:             k,
+		prefixBitLength: prefixBitLength,
+		resp:            make(chan map[string][]peer.ID, 1), // buffered to prevent sender from blocking
 	}
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case pm.getprovs <- gp:
+	case pm.getProvsByPrefix <- gp:
 	}
 	select {
 	case <-ctx.Done():
@@ -353,38 +354,33 @@ func (pm *ProviderManager) getProviderSetForKey(ctx context.Context, k []byte) (
 		return nil, err
 	}
 
-	if len(pset.providers) > 0 && len(k) >= 32 {
-		// don't cache if this is a prefix
+	if len(pset.providers) > 0 {
 		pm.cache.Add(string(k), pset)
 	}
 
 	return pset, nil
 }
 
-// TODO: duplicate code, clean this up!!
 // returns the ProviderSet if it already exists on cache, otherwise loads it from datasatore
-func (pm *ProviderManager) getProviderSetForPrefix(ctx context.Context, k []byte) (*providerSet, error) {
+func (pm *ProviderManager) getProviderSetForPrefix(ctx context.Context, k []byte, prefixBitLength int) (*providerSet, error) {
 	cached, ok := pm.cache.Get(string(k))
 	if ok {
 		return cached.(*providerSet), nil
 	}
 
-	pset, err := loadProviderSetByPrefix(ctx, pm.dstore, k)
+	pset, err := loadProviderSetByPrefix(ctx, pm.dstore, k, prefixBitLength)
+	//pset, err := loadProviderSet(ctx, pm.dstore, k)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(pset.providers) > 0 && len(k) >= 32 {
-		// don't cache if this is a prefix
-		pm.cache.Add(string(k), pset)
-	}
-
+	// note: prefixes are not cached, unlike full key lookups.
+	// is this okay?
 	return pset, nil
 }
 
 // loads the ProviderSet out of the datastore
 func loadProviderSet(ctx context.Context, dstore ds.Datastore, k []byte) (*providerSet, error) {
-	// for prefix lookups, this already returns all providers with the prefix, so don't need to modify
 	res, err := dstore.Query(ctx, dsq.Query{Prefix: mkProvKey(k)})
 	if err != nil {
 		return nil, err
@@ -398,48 +394,10 @@ func loadProviderSet(ctx context.Context, dstore ds.Datastore, k []byte) (*provi
 		if !ok {
 			break
 		}
-		if e.Error != nil {
-			log.Error("got an error: ", e.Error)
-			continue
-		}
 
-		// check expiration time
-		t, err := readTimeValue(e.Value)
-		switch {
-		case err != nil:
-			// couldn't parse the time
-			log.Error("parsing providers record from disk: ", err)
-			fallthrough
-		case now.Sub(t) > ProvideValidity:
-			// or just expired
-			err = dstore.Delete(ctx, ds.RawKey(e.Key))
-			if err != nil && err != ds.ErrNotFound {
-				log.Error("failed to remove provider record from disk: ", err)
-			}
-			continue
-		}
-
-		lix := strings.LastIndex(e.Key, "/")
-
-		decstr, err := base32.RawStdEncoding.DecodeString(e.Key[lix+1:])
+		pid, decKey, t, err := handleQueryKey(ctx, dstore, e, now)
 		if err != nil {
-			log.Error("base32 decoding error: ", err)
-			err = dstore.Delete(ctx, ds.RawKey(e.Key))
-			if err != nil && err != ds.ErrNotFound {
-				log.Error("failed to remove provider record from disk: ", err)
-			}
-			continue
-		}
-
-		pid := peer.ID(decstr)
-
-		decKey, err := base32.RawStdEncoding.DecodeString(e.Key[len(ProvidersKeyPrefix):lix])
-		if err != nil {
-			log.Error("base32 decoding error: ", err)
-			err = dstore.Delete(ctx, ds.RawKey(e.Key))
-			if err != nil && err != ds.ErrNotFound {
-				log.Error("failed to remove provider record from disk: ", err)
-			}
+			log.Debugf("failed to handle query key: %s", err)
 			continue
 		}
 
@@ -450,12 +408,13 @@ func loadProviderSet(ctx context.Context, dstore ds.Datastore, k []byte) (*provi
 }
 
 // loads the ProviderSet out of the datastore
-// TODO: add prefix length so we know how many leading 0s to include on the final byte, if any.
-func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte) (*providerSet, error) {
+func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte, prefixBitLength int) (*providerSet, error) {
 	// for prefix lookups, this already returns all providers with the prefix, so don't need to modify
 	// note: we slice off the last byte since the prefix is by *bits*, so we need to manually xor and check
 	// how many bits match in the final byte.
-	res, err := dstore.Query(ctx, dsq.Query{Prefix: mkProvKey(k[:len(k)-1])})
+	prefixKey := mkProvKey(k[:len(k)-1])
+
+	res, err := dstore.Query(ctx, dsq.Query{Prefix: prefixKey})
 	if err != nil {
 		return nil, err
 	}
@@ -463,64 +422,78 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte)
 
 	now := time.Now()
 	out := newProviderSet()
+	i := 0
 	for {
 		e, ok := res.NextSync()
 		if !ok {
 			break
 		}
-		if e.Error != nil {
-			log.Error("got an error: ", e.Error)
-			continue
-		}
 
-		// check expiration time
-		t, err := readTimeValue(e.Value)
-		switch {
-		case err != nil:
-			// couldn't parse the time
-			log.Error("parsing providers record from disk: ", err)
-			fallthrough
-		case now.Sub(t) > ProvideValidity:
-			// or just expired
-			err = dstore.Delete(ctx, ds.RawKey(e.Key))
-			if err != nil && err != ds.ErrNotFound {
-				log.Error("failed to remove provider record from disk: ", err)
-			}
-			continue
-		}
-
-		lix := strings.LastIndex(e.Key, "/")
-
-		decstr, err := base32.RawStdEncoding.DecodeString(e.Key[lix+1:])
+		pid, decKey, t, err := handleQueryKey(ctx, dstore, e, now)
 		if err != nil {
-			log.Error("base32 decoding error: ", err)
-			err = dstore.Delete(ctx, ds.RawKey(e.Key))
-			if err != nil && err != ds.ErrNotFound {
-				log.Error("failed to remove provider record from disk: ", err)
-			}
+			log.Debugf("failed to handle query key: %s", err)
 			continue
 		}
 
-		pid := peer.ID(decstr)
-
-		decKey, err := base32.RawStdEncoding.DecodeString(e.Key[len(ProvidersKeyPrefix):lix])
-		if err != nil {
-			log.Error("base32 decoding error: ", err)
-			err = dstore.Delete(ctx, ds.RawKey(e.Key))
-			if err != nil && err != ds.ErrNotFound {
-				log.Error("failed to remove provider record from disk: ", err)
-			}
-			continue
-		}
-
-		if numCommonBits(k[len(k)-1], decKey[len(k)-1]) < highestSetBit(k[len(k)-1]) {
+		// check that the last byte of the lookup key and the corresponding byte in the db key
+		// match; ie that the bits set in the prefixed key match that of the db key
+		// if they don't, then ignore this record
+		if !prefixesMatch(k, decKey, prefixBitLength) {
 			continue
 		}
 
 		out.setVal(pid, decKey, t)
+		i++
 	}
 
 	return out, nil
+}
+
+func handleQueryKey(ctx context.Context, dstore ds.Datastore, e dsq.Result, now time.Time) (peer.ID, []byte, time.Time, error) {
+	if e.Error != nil {
+		return "", nil, time.Time{}, e.Error
+	}
+
+	// check expiration time
+	t, err := readTimeValue(e.Value)
+	switch {
+	case err != nil:
+		// couldn't parse the time
+		log.Error("parsing providers record from disk: ", err)
+		fallthrough
+	case now.Sub(t) > ProvideValidity:
+		// or just expired
+		err = dstore.Delete(ctx, ds.RawKey(e.Key))
+		if err != nil && err != ds.ErrNotFound {
+			return "", nil, time.Time{}, fmt.Errorf("failed to remove provider record from disk: %w", err)
+		}
+	}
+
+	lix := strings.LastIndex(e.Key, "/")
+
+	// decode peer ID
+	decstr, err := base32.RawStdEncoding.DecodeString(e.Key[lix+1:])
+	if err != nil {
+		log.Error("hex decoding error: ", err)
+		err = dstore.Delete(ctx, ds.RawKey(e.Key))
+		if err != nil && err != ds.ErrNotFound {
+			return "", nil, time.Time{}, fmt.Errorf("failed to remove provider record from disk: %w", err)
+		}
+	}
+
+	pid := peer.ID(decstr)
+
+	// decode provided key
+	decKey, err := hex.DecodeString(e.Key[len(ProvidersKeyPrefix):lix])
+	if err != nil {
+		log.Error("base32 decoding error: ", err)
+		err = dstore.Delete(ctx, ds.RawKey(e.Key))
+		if err != nil && err != ds.ErrNotFound {
+			return "", nil, time.Time{}, fmt.Errorf("failed to remove provider record from disk: %w", err)
+		}
+	}
+
+	return pid, decKey, t, nil
 }
 
 func readTimeValue(data []byte) (time.Time, error) {
@@ -530,6 +503,37 @@ func readTimeValue(data []byte) (time.Time, error) {
 	}
 
 	return time.Unix(0, nsec), nil
+}
+
+// prefixesMatch returns true if the bits up to `prefixBitLength` match.
+func prefixesMatch(a, b []byte, prefixBitLength int) bool {
+	if prefixBitLength == 0 {
+		return true
+	}
+
+	if len(a) == 0 || len(b) == 0 {
+		return false
+	}
+
+	byteLen := prefixBitLength / 8
+	if prefixBitLength%8 == 0 && (len(a) < byteLen || len(b) < byteLen) {
+		return false
+	}
+
+	if prefixBitLength%8 != 0 && (len(a) < byteLen+1 || len(b) < byteLen+1) {
+		return false
+	}
+
+	if !bytes.Equal(a[:byteLen], b[:byteLen]) {
+		return false
+	}
+
+	if prefixBitLength%8 == 0 {
+		return true
+	}
+
+	cb := numCommonBits(a[byteLen], b[byteLen])
+	return cb >= prefixBitLength%8
 }
 
 func numCommonBits(a, b byte) int {
@@ -546,17 +550,5 @@ func numCommonBits(a, b byte) int {
 
 		common = common << 1
 		i--
-	}
-}
-
-func highestSetBit(b byte) int {
-	i := 0
-	for {
-		if b == 0 {
-			return i
-		}
-
-		b = b >> 1
-		i++
 	}
 }

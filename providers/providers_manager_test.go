@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 
 	mh "github.com/multiformats/go-multihash"
 
@@ -386,4 +387,85 @@ func TestWriteUpdatesCache(t *testing.T) {
 	if len(c1Provs) != 2 {
 		t.Fatalf("expected h1 to be provided by 2 peers, is by %d", len(c1Provs))
 	}
+}
+
+func TestPrefixesMatch(t *testing.T) {
+	testCases := []struct {
+		a, b     []byte
+		bits     int
+		expected bool
+	}{
+		{
+			a:        []byte{},
+			b:        []byte{},
+			bits:     0,
+			expected: true,
+		},
+		{
+			a:        []byte{},
+			b:        []byte{},
+			bits:     1,
+			expected: false,
+		},
+		{
+			a:        []byte{0x1},
+			b:        []byte{},
+			bits:     1,
+			expected: false,
+		},
+		{
+			a:        []byte{0x1},
+			b:        []byte{0x3},
+			bits:     1,
+			expected: true,
+		},
+		{
+			a:        []byte{0x1},
+			b:        []byte{0xff, 0xff},
+			bits:     1,
+			expected: true,
+		},
+		{
+			a:        []byte{0x1},
+			b:        []byte{0b11111110, 0xff},
+			bits:     1,
+			expected: false,
+		},
+		{
+			a:        []byte{0x3},
+			b:        []byte{0xff},
+			bits:     2,
+			expected: true,
+		},
+		{
+			a:        []byte{0xff, 0x1},
+			b:        []byte{0xff, 0xff},
+			bits:     9,
+			expected: true,
+		},
+		{
+			a:        []byte{0xff, 0x0},
+			b:        []byte{0xff, 0xff},
+			bits:     9,
+			expected: false,
+		},
+		{
+			a:        []byte{0xff},
+			b:        []byte{0xff},
+			bits:     9,
+			expected: false,
+		},
+		{
+			a:        []byte{0xff, 0b01111111},
+			b:        []byte{0xff, 0xff},
+			bits:     15,
+			expected: true,
+		},
+	}
+
+	for i, tc := range testCases {
+		res := prefixesMatch(tc.a, tc.b, tc.bits)
+		require.Equal(t, tc.expected, res, fmt.Sprintf("case %d failed", i))
+	}
+
 }

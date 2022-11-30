@@ -141,7 +141,7 @@ func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key mul
 	}
 
 	pmes := NewMessage(Message_ADD_PROVIDER, key, 0)
-	pmes.ProviderPeers = RawPeerInfosToPBPeers([]peer.AddrInfo{pi})
+	pmes.ProviderPeers = PeersToPeersWithKey(RawPeerInfosToPBPeers([]peer.AddrInfo{pi}))
 	pmes.ProviderPeers[0].Signature = sig
 	pmes.ProviderPeers[0].PublicKey = pbPubKey
 
@@ -150,14 +150,41 @@ func (pm *ProtocolMessenger) PutProvider(ctx context.Context, p peer.ID, key mul
 
 // GetProviders asks a peer for the providers it knows of for a given key. Also returns the K closest peers to the key
 // as described in GetClosestPeers.
-func (pm *ProtocolMessenger) GetProviders(ctx context.Context, p peer.ID, key []byte) ([]*PeerWithKeys, []*peer.AddrInfo, error) {
+func (pm *ProtocolMessenger) GetProviders(
+	ctx context.Context,
+	p peer.ID,
+	key []byte,
+) ([]*peer.AddrInfo, []*peer.AddrInfo, error) {
 	pmes := NewMessage(Message_GET_PROVIDERS, key, 0)
-	respMsg, err := pm.m.SendRequest(ctx, p, pmes)
+	resp, err := pm.m.SendRequest(ctx, p, pmes)
 	if err != nil {
 		return nil, nil, err
 	}
-	provs := PBPeersToPeerInfosWithKeys(respMsg.GetProviderPeers())
-	closerPeers := PBPeersToPeerInfos(respMsg.GetCloserPeers())
+	provs := PBPeersToAddrInfos(resp.GetProviderPeers())
+	closerPeers := PBPeersToPeerInfos(resp.GetCloserPeers())
+	return provs, closerPeers, nil
+}
+
+// GetProvidersByPrefix asks a peer for the providers it knows of for a given key prefix.
+// The returned providers map is of the full provided key to a list of providers for that key.
+// also returns K closest peers.
+func (pm *ProtocolMessenger) GetProvidersByPrefix(
+	ctx context.Context,
+	p peer.ID,
+	lookupKey []byte,
+	fullKey []byte,
+	prefixBitLength int,
+) ([]*peer.AddrInfo, []*peer.AddrInfo, error) {
+	pmes := NewGetProvidersMessage(Message_GET_PROVIDERS, lookupKey, prefixBitLength, 0)
+	resp, err := pm.m.SendRequest(ctx, p, pmes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// if this is a prefix lookup, the providers might not actually have
+	// the content we're looking for. discard all that don't
+	provs := PBPeersWithKeyToAddrInfos(resp.GetProviderPeers(), fullKey)
+	closerPeers := PBPeersToPeerInfos(resp.GetCloserPeers())
 	return provs, closerPeers, nil
 }
 

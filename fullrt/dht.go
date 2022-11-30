@@ -95,8 +95,6 @@ type FullRT struct {
 	timeoutPerOp time.Duration
 
 	bulkSendParallelism int
-
-	prefixLength int
 }
 
 // NewFullRT creates a DHT client that tracks the full network. It takes a protocol prefix for the given network,
@@ -187,8 +185,6 @@ func NewFullRT(h host.Host, protocolPrefix protocol.ID, options ...Option) (*Ful
 		crawlerInterval: time.Minute * 60,
 
 		bulkSendParallelism: 20,
-
-		prefixLength: dhtcfg.PrefixLookupLength,
 	}
 
 	rt.wg.Add(1)
@@ -785,7 +781,7 @@ func (dht *FullRT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err e
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
-	err = dht.ProviderManager.AddProvider(ctx, keyMH, dht.h.ID())
+	err = dht.ProviderManager.AddProvider(ctx, mhHash, dht.h.ID())
 	if err != nil {
 		return err
 	}
@@ -942,7 +938,7 @@ func (dht *FullRT) ProvideMany(ctx context.Context, keys []multihash.Multihash) 
 
 	fn := func(ctx context.Context, p, k peer.ID) error {
 		pmes := dht_pb.NewMessage(dht_pb.Message_ADD_PROVIDER, multihash.Multihash(k), 0)
-		pmes.ProviderPeers = pbPeers
+		pmes.ProviderPeers = dht_pb.PeersToPeersWithKey(pbPeers)
 
 		return dht.messageSender.SendMessage(ctx, p, pmes)
 	}
@@ -1286,14 +1282,12 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 			ID:   p,
 		})
 
-		var lookupKey []byte
-		if dht.prefixLength != 0 {
-			lookupKey = mhHash[:dht.prefixLength]
-		} else {
-			lookupKey = mhHash[:]
-		}
-
-		provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, lookupKey)
+		var (
+			provs  []*peer.AddrInfo
+			closer []*peer.AddrInfo
+			err    error
+		)
+		provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, key)
 		if err != nil {
 			return err
 		}
@@ -1302,27 +1296,12 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 
 		// Add unique providers from request, up to 'count'
 		for _, prov := range provs {
-			// if this is a prefix lookup, the providers might not actually have
-			// the content we're looking for. discard all that don't
-			if dht.prefixLength > 0 {
-				var hasContent bool
-				for _, key := range prov.Keys {
-					if bytes.Equal(key, mhHash[:]) {
-						hasContent = true
-						break
-					}
-				}
-				if !hasContent {
-					continue
-				}
-			}
-
-			dht.maybeAddAddrs(prov.AddrInfo.ID, prov.AddrInfo.Addrs, peerstore.TempAddrTTL)
+			dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
 			logger.Debugf("got provider: %s", prov)
-			if psTryAdd(prov.AddrInfo.ID) {
+			if psTryAdd(prov.ID) {
 				logger.Debugf("using provider: %s", prov)
 				select {
-				case peerOut <- *prov.AddrInfo:
+				case peerOut <- *prov:
 				case <-ctx.Done():
 					logger.Debug("context timed out sending more providers")
 					return ctx.Err()
@@ -1330,18 +1309,17 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 			}
 			if !findAll && psSize() >= count {
 				logger.Debugf("got enough providers (%d/%d)", psSize(), count)
-				cancelquery()
 				return nil
 			}
 		}
 
 		// Give closer peers back to the query to be queried
-		logger.Debugf("got closer peers: %d %s", len(closest), closest)
+		logger.Debugf("got closer peers: %d %s", len(closer), closer)
 
 		routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 			Type:      routing.PeerResponse,
 			ID:        p,
-			Responses: closest,
+			Responses: closer,
 		})
 		return nil
 	}
