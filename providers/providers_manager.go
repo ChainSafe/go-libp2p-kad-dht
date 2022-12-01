@@ -369,7 +369,6 @@ func (pm *ProviderManager) getProviderSetForPrefix(ctx context.Context, k []byte
 	}
 
 	pset, err := loadProviderSetByPrefix(ctx, pm.dstore, k, prefixBitLength)
-	//pset, err := loadProviderSet(ctx, pm.dstore, k)
 	if err != nil {
 		return nil, err
 	}
