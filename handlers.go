@@ -348,13 +348,6 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 	provs := pmes.GetProviderPeers()
 	pinfos := pb.PBPeersToAddrInfos(provs)
 	for i, pi := range pinfos {
-		if pi.ID != p {
-			// we should ignore this provider record! not from originator.
-			// (we should sign them and check signature later...)
-			logger.Debugw("received provider from wrong peer", "from", p, "peer", pi.ID)
-			continue
-		}
-
 		if len(pi.Addrs) < 1 {
 			logger.Debugw("no valid addresses for provider", "from", p)
 			continue
@@ -394,6 +387,8 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 		if err != nil {
 			return nil, err
 		}
+
+		logger.Infof("added provider %x for %x", pi.ID, key)
 	}
 
 	return nil, nil
