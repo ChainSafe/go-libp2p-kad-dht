@@ -113,7 +113,7 @@ func TestPrefixByBits(t *testing.T) {
 }
 
 func TestDecodePrefixedKey(t *testing.T) {
-	mh := Sha256Multihash([]byte("nootwashere"))
+	mh, _ := Sha256Multihash([]byte("nootwashere"))
 	require.Equal(t, 34, len(mh))
 	decodedMH, err := multihash.Decode(mh)
 	require.NoError(t, err)

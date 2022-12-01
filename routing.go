@@ -378,7 +378,7 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	}
 	keyMH := key.Hash()
 	// hash multihash for double-hashing implementation
-	mhHash := internal.Sha256Multihash(keyMH)
+	mhHash, _ := internal.Sha256Multihash(keyMH)
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
@@ -494,7 +494,8 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	dht.prefixLengthMu.RUnlock()
 
 	// hash multihash for double-hashing implementation
-	mhHash := internal.Sha256Multihash(key)
+	mhHash, extraByteLength := internal.Sha256Multihash(key)
+	extraBitLength := extraByteLength * 8
 	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	ps := make(map[peer.ID]struct{})
@@ -537,9 +538,8 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
-	// note: 2 bytes are added b/c of the multihash code + digest length; if the multihash
-	// length changes in the future, this might break.
-	lookupKey := internal.PrefixByBits(mhHash, prefixLength+16)
+	// note: extra bits are added b/c of the multihash code + digest length
+	lookupKey := internal.PrefixByBits(mhHash, prefixLength+extraBitLength)
 
 	logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, prefixLength, lookupKey, len(lookupKey))
 
@@ -562,7 +562,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			if prefixLength == 0 {
 				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, mhHash)
 			} else {
-				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, prefixLength+16)
+				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, prefixLength+extraBitLength)
 			}
 			if err != nil {
 				return nil, err

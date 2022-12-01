@@ -9,14 +9,14 @@ import (
 
 const keysize = 32
 
-func Sha256Multihash(mh multihash.Multihash) multihash.Multihash {
+func Sha256Multihash(mh multihash.Multihash) (multihash.Multihash, int) {
 	prefix := []byte("CR_DOUBLEHASH")
 	mh, err := multihash.Sum(append(prefix, mh...), multihash.DBL_SHA2_256, keysize)
 	if err != nil {
 		// this shouldn't ever happen
 		panic(err)
 	}
-	return mh
+	return mh, len(mh) - keysize
 }
 
 // PrefixByBits returns prefix of the key with the given length (in bits).
