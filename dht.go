@@ -438,6 +438,9 @@ func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
 	}
 
 	dht.prefixLengthMu.Lock()
+	if prefixLength == 0 {
+		prefixLength = 256
+	}
 	dht.prefixLength = prefixLength
 	dht.prefixLengthMu.Unlock()
 	return nil
