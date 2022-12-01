@@ -777,7 +777,7 @@ func (dht *FullRT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err e
 		return fmt.Errorf("invalid cid: undefined")
 	}
 	keyMH := key.Hash()
-	mhHash := internal.Sha256Multihash(keyMH)
+	mhHash, _ := internal.Sha256Multihash(keyMH)
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
@@ -1223,7 +1223,7 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 	defer close(peerOut)
 
 	// hash multihash for double-hashing implementation
-	mhHash := internal.Sha256Multihash(key)
+	mhHash, _ := internal.Sha256Multihash(key)
 	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	findAll := count == 0
