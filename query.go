@@ -59,6 +59,8 @@ type query struct {
 
 	// stopFn is used to determine if we should stop the WHOLE disjoint query.
 	stopFn stopFn
+
+	hops int
 }
 
 type lookupWithFollowupResult struct {
@@ -68,6 +70,8 @@ type lookupWithFollowupResult struct {
 	// indicates that neither the lookup nor the followup has been prematurely terminated by an external condition such
 	// as context cancellation or the stop function being called.
 	completed bool
+
+	hops int
 }
 
 // runLookupWithFollowup executes the lookup on the target using the given query function and stopping when either the
@@ -264,6 +268,7 @@ func (q *query) constructLookupResult(target kb.ID) *lookupWithFollowupResult {
 		peers:     sortedPeers,
 		state:     make([]qpeerset.PeerState, len(sortedPeers)),
 		completed: completed,
+		hops:      q.hops,
 	}
 
 	for i, p := range sortedPeers {
@@ -280,6 +285,7 @@ type queryUpdate struct {
 	unreachable []peer.ID
 
 	queryDuration time.Duration
+	hops          int
 }
 
 func (q *query) run() {
@@ -289,16 +295,21 @@ func (q *query) run() {
 	alpha := q.dht.alpha
 
 	ch := make(chan *queryUpdate, alpha)
-	ch <- &queryUpdate{cause: q.dht.self, heard: q.seedPeers}
+	ch <- &queryUpdate{cause: q.dht.self, heard: q.seedPeers, hops: 0}
 
 	// return only once all outstanding queries have completed.
 	defer q.waitGroup.Wait()
 	for {
 		var cause peer.ID
+		var hops int
 		select {
 		case update := <-ch:
 			q.updateState(pathCtx, update)
 			cause = update.cause
+			hops = update.hops
+			if hops > q.hops {
+				q.hops = hops
+			}
 		case <-pathCtx.Done():
 			q.terminate(pathCtx, cancelPath, LookupCancelled)
 		}
@@ -320,13 +331,13 @@ func (q *query) run() {
 
 		// try spawning the queries, if there are no available peers to query then we won't spawn them
 		for _, p := range qPeers {
-			q.spawnQuery(pathCtx, cause, p, ch)
+			q.spawnQuery(pathCtx, cause, p, ch, hops)
 		}
 	}
 }
 
 // spawnQuery starts one query, if an available heard peer is found
-func (q *query) spawnQuery(ctx context.Context, cause peer.ID, queryPeer peer.ID, ch chan<- *queryUpdate) {
+func (q *query) spawnQuery(ctx context.Context, cause peer.ID, queryPeer peer.ID, ch chan<- *queryUpdate, hops int) {
 	PublishLookupEvent(ctx,
 		NewLookupEvent(
 			q.dht.self,
@@ -346,7 +357,7 @@ func (q *query) spawnQuery(ctx context.Context, cause peer.ID, queryPeer peer.ID
 	)
 	q.queryPeers.SetState(queryPeer, qpeerset.PeerWaiting)
 	q.waitGroup.Add(1)
-	go q.queryPeer(ctx, ch, queryPeer)
+	go q.queryPeer(ctx, ch, queryPeer, hops)
 }
 
 func (q *query) isReadyToTerminate(ctx context.Context, nPeersToQuery int) (bool, LookupTerminationReason, []peer.ID) {
@@ -413,7 +424,7 @@ func (q *query) terminate(ctx context.Context, cancel context.CancelFunc, reason
 
 // queryPeer queries a single peer and reports its findings on the channel.
 // queryPeer does not access the query state in queryPeers!
-func (q *query) queryPeer(ctx context.Context, ch chan<- *queryUpdate, p peer.ID) {
+func (q *query) queryPeer(ctx context.Context, ch chan<- *queryUpdate, p peer.ID, hops int) {
 	defer q.waitGroup.Done()
 	dialCtx, queryCtx := ctx, q.ctx
 
@@ -466,7 +477,7 @@ func (q *query) queryPeer(ctx context.Context, ch chan<- *queryUpdate, p peer.ID
 		}
 	}
 
-	ch <- &queryUpdate{cause: p, heard: saw, queried: []peer.ID{p}, queryDuration: queryDuration}
+	ch <- &queryUpdate{cause: p, heard: saw, queried: []peer.ID{p}, queryDuration: queryDuration, hops: hops + 1}
 }
 
 func (q *query) updateState(ctx context.Context, up *queryUpdate) {
