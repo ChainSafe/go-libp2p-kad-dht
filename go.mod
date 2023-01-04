@@ -29,6 +29,7 @@ require (
 	github.com/multiformats/go-multibase v0.1.1
 	github.com/multiformats/go-multihash v0.2.1
 	github.com/multiformats/go-multistream v0.3.3
+	github.com/multiformats/go-varint v0.0.6
 	github.com/stretchr/testify v1.8.0
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/otel v1.7.0
@@ -93,7 +94,6 @@ require (
 	github.com/multiformats/go-multiaddr-dns v0.3.1 // indirect
 	github.com/multiformats/go-multiaddr-fmt v0.1.0 // indirect
 	github.com/multiformats/go-multicodec v0.5.0 // indirect
-	github.com/multiformats/go-varint v0.0.6 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
@@ -124,5 +124,3 @@ require (
 )
 
 replace github.com/libp2p/go-libp2p-kbucket => ../../ChainSafe/go-libp2p-kbucket
-
-replace github.com/ipfs/go-datastore => ../../ChainSafe/go-datastore

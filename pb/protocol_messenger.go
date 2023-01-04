@@ -165,7 +165,7 @@ func (pm *ProtocolMessenger) GetProviders(
 }
 
 // GetProvidersByPrefix asks a peer for the providers it knows of for a given key prefix.
-// The returned providers map is of the full provided key to a list of providers for that key.
+// The returned providers list is a list of providers that have the given fullKey.
 // also returns K closest peers.
 func (pm *ProtocolMessenger) GetProvidersByPrefix(
 	ctx context.Context,
@@ -179,6 +179,8 @@ func (pm *ProtocolMessenger) GetProvidersByPrefix(
 	if err != nil {
 		return nil, nil, err
 	}
+
+	logger.Infof("GetProvidersByPrefix received %d provs", len(resp.GetProviderPeers()))
 
 	// if this is a prefix lookup, the providers might not actually have
 	// the content we're looking for. discard all that don't
