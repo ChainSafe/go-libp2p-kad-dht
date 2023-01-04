@@ -420,7 +420,11 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 	// how many bits match in the final byte.
 	prefixKey := mkProvKey(k[:len(k)-1])
 
-	res, err := dstore.Query(ctx, dsq.Query{Prefix: prefixKey})
+	q := dsq.Query{
+		Filters: []dsq.Filter{dsq.FilterKeyPrefix{prefixKey}},
+	}
+
+	res, err := dstore.Query(ctx, q)
 	if err != nil {
 		return nil, err
 	}
