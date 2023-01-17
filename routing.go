@@ -484,6 +484,12 @@ func (dht *IpfsDHT) FindProvidersAsync(ctx context.Context, key cid.Cid, count i
 	return peerOut
 }
 
+var hops int
+
+func (dht *IpfsDHT) GetMostRecentLookupHops() int {
+	return hops
+}
+
 func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash.Multihash, count int, peerOut chan peer.AddrInfo) {
 	defer close(peerOut)
 
@@ -584,6 +590,11 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	if err == nil && ctx.Err() == nil {
 		dht.refreshRTIfNoShortcut(kb.ConvertKey(string(key)), lookupRes)
+	}
+
+	if lookupRes != nil {
+		logger.Infof("total hops: %d", lookupRes.hops)
+		hops = lookupRes.hops
 	}
 }
 
