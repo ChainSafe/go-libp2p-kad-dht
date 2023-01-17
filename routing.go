@@ -609,7 +609,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				logger.Debugf("got provider: %s", prov)
 
 				if psTryAdd(prov.ID) {
-					logger.Errorf("using provider: %s key %s", prov, key)
+					logger.Debugf("using provider: %s key %s", prov, key)
 					select {
 					case peerOut <- *prov:
 					case <-ctx.Done():
