@@ -46,6 +46,7 @@ type Config struct {
 	EnableValues       bool
 	ProviderStore      providers.ProviderStore
 	QueryPeerFilter    QueryFilterFunc
+	PrefixLookupLength int
 
 	RoutingTable struct {
 		RefreshQueryTimeout time.Duration

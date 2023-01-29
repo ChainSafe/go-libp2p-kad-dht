@@ -36,6 +36,15 @@ const DefaultPrefix protocol.ID = "/ipfs"
 
 type Option = dhtcfg.Option
 
+// PrefixLookups configures the DHT to use prefixes of keys for provider lookups.
+// The length is in *bits*, and thus must be less than 256 (32 bytes).
+func PrefixLookups(prefixLen int) Option {
+	return func(c *dhtcfg.Config) error {
+		c.PrefixLookupLength = prefixLen
+		return nil
+	}
+}
+
 // ProviderStore sets the provider storage manager.
 func ProviderStore(ps providers.ProviderStore) Option {
 	return func(c *dhtcfg.Config) error {

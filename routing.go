@@ -378,7 +378,7 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	}
 	keyMH := key.Hash()
 	// hash multihash for double-hashing implementation
-	mhHash := internal.Sha256Multihash(keyMH)
+	mhHash, _ := internal.Sha256Multihash(keyMH)
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
@@ -455,7 +455,7 @@ func (dht *IpfsDHT) FindProviders(ctx context.Context, c cid.Cid) ([]peer.AddrIn
 	}
 
 	var providers []peer.AddrInfo
-	for p := range dht.FindProvidersAsync(ctx, c, dht.bucketSize) {
+	for p := range dht.FindProvidersAsync(ctx, c, 0) {
 		providers = append(providers, p)
 	}
 	return providers, nil
@@ -489,8 +489,13 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 	findAll := count == 0
 
+	dht.prefixLengthMu.RLock()
+	prefixLength := dht.prefixLength
+	dht.prefixLengthMu.RUnlock()
+
 	// hash multihash for double-hashing implementation
-	mhHash := internal.Sha256Multihash(key)
+	mhHash, extraByteLength := internal.Sha256Multihash(key)
+	extraBitLength := extraByteLength * 8
 	logger.Debugw("finding providers", "cid", key, "mhHash", mhHash, "mh", internal.LoggableProviderRecordBytes(key))
 
 	ps := make(map[peer.ID]struct{})
@@ -515,6 +520,7 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	if err != nil {
 		return
 	}
+
 	for _, p := range provs {
 		// NOTE: Assuming that this list of peers is unique
 		if psTryAdd(p.ID) {
@@ -532,50 +538,64 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		}
 	}
 
+	// note: extra bits are added b/c of the multihash code + digest length
+	lookupKey := internal.PrefixByBits(mhHash, prefixLength+extraBitLength)
+
+	runLookupWithFollowupCalls := 0
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
+			runLookupWithFollowupCalls++
+
 			// For DHT query command
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 				Type: routing.SendingQuery,
 				ID:   p,
 			})
 
-			provs, closest, err := dht.protoMessenger.GetProviders(ctx, p, multihash.Multihash(mhHash[:])) // TODO: this isn't a multihash anymore, change GetProvider param type instead?
+			var (
+				provs  []*peer.AddrInfo
+				closer []*peer.AddrInfo
+				err    error
+			)
+			if prefixLength == 0 {
+				provs, closer, err = dht.protoMessenger.GetProviders(ctx, p, mhHash)
+			} else {
+				provs, closer, err = dht.protoMessenger.GetProvidersByPrefix(ctx, p, lookupKey, mhHash, prefixLength+extraBitLength)
+			}
 			if err != nil {
 				return nil, err
 			}
 
-			logger.Debugf("%d provider entries", len(provs))
+			logger.Debugf("found %d keys with prefix", len(provs))
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
 				dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
 				logger.Debugf("got provider: %s", prov)
+
 				if psTryAdd(prov.ID) {
-					logger.Debugf("using provider: %s", prov)
 					select {
 					case peerOut <- *prov:
 					case <-ctx.Done():
-						logger.Debug("context timed out sending more providers")
+						logger.Debugf("context timed out sending more providers")
 						return nil, ctx.Err()
 					}
 				}
 				if !findAll && psSize() >= count {
-					logger.Debugf("got enough providers (%d/%d)", psSize(), count)
 					return nil, nil
 				}
 			}
 
 			// Give closer peers back to the query to be queried
-			logger.Debugf("got closer peers: %d %s", len(closest), closest)
+			logger.Debugf("got closer peers: %d %s", len(closer), closer)
 
 			routing.PublishQueryEvent(ctx, &routing.QueryEvent{
 				Type:      routing.PeerResponse,
 				ID:        p,
-				Responses: closest,
+				Responses: closer,
 			})
 
-			return closest, nil
+			return closer, nil
 		},
 		func() bool {
 			return !findAll && psSize() >= count

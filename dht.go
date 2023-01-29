@@ -2,6 +2,7 @@ package dht
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -149,6 +150,11 @@ type IpfsDHT struct {
 
 	// configuration variables for tests
 	testAddressUpdateProcessing bool
+
+	// length of prefix of keys for provider lookups
+	// if 0, the whole key is used.
+	prefixLength   int
+	prefixLengthMu sync.RWMutex
 }
 
 // Assert that IPFS assumptions about interfaces aren't broken. These aren't a
@@ -195,6 +201,12 @@ func New(ctx context.Context, h host.Host, options ...Option) (*IpfsDHT, error) 
 	dht.protoMessenger, err = pb.NewProtocolMessenger(dht.msgSender)
 	if err != nil {
 		return nil, err
+	}
+
+	dht.prefixLength = cfg.PrefixLookupLength
+	if dht.prefixLength >= 256 {
+		// if prefixLength is greater than the hash length, then just look up the whole hash
+		dht.prefixLength = 0
 	}
 
 	dht.testAddressUpdateProcessing = cfg.TestAddressUpdateProcessing
@@ -344,7 +356,7 @@ func makeDHT(ctx context.Context, h host.Host, cfg dhtcfg.Config) (*IpfsDHT, err
 	if cfg.ProviderStore != nil {
 		dht.providerStore = cfg.ProviderStore
 	} else {
-		dht.providerStore, err = providers.NewProviderManager(dht.ctx, h.ID(), dht.peerstore, cfg.Datastore)
+		dht.providerStore, err = providers.NewProviderManager(dht.ctx, h.ID(), h.Peerstore(), cfg.Datastore)
 		if err != nil {
 			return nil, fmt.Errorf("initializing default provider manager (%v)", err)
 		}
@@ -417,6 +429,21 @@ func makeRoutingTable(dht *IpfsDHT, cfg dhtcfg.Config, maxLastSuccessfulOutbound
 	}
 
 	return rt, err
+}
+
+// SetPrefixLength sets the prefix length for DHT provider lookups.
+func (dht *IpfsDHT) SetPrefixLength(prefixLength int) error {
+	if prefixLength > 256 || prefixLength < 0 {
+		return errors.New("invalid prefix length")
+	}
+
+	dht.prefixLengthMu.Lock()
+	if prefixLength == 0 {
+		prefixLength = 256
+	}
+	dht.prefixLength = prefixLength
+	dht.prefixLengthMu.Unlock()
+	return nil
 }
 
 // ProviderStore returns the provider storage object for storing and retrieving provider records.
@@ -685,23 +712,42 @@ func (dht *IpfsDHT) FindLocal(id peer.ID) peer.AddrInfo {
 }
 
 // nearestPeersToQuery returns the routing tables closest peers.Digest
-func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) []peer.ID {
-	key := pmes.GetKey()
+func (dht *IpfsDHT) nearestPeersToQuery(pmes *pb.Message, count int) ([]peer.ID, error) {
+	key := pmes.GetKey().GetKey()
+	prefixBitLength := pmes.GetKey().GetPrefixBitLength()
+
+	if prefixBitLength != 0 {
+		key, err := internal.DecodePrefixedKey(key)
+		if err != nil {
+			return nil, err
+		}
+
+		// prefix lookup
+		closer := dht.routingTable.NearestPeersToPrefix(kb.ID(string(key)), count)
+		return closer, nil
+	}
+
 	// for GET_PROVIDERS messages, or sometimes FIND_NODE messages,
 	// the message key is the hashed multihash, so don't hash it again
 	decodedMH, err := multihash.Decode(key)
 	if err == nil && decodedMH.Code == multihash.DBL_SHA2_256 {
+		// normal non-prefixed lookup
 		closer := dht.routingTable.NearestPeers(kb.ID(string(decodedMH.Digest)), count)
-		return closer
+		return closer, nil
 	}
 
+	// non-prefixed, non double-hashed lookup
 	closer := dht.routingTable.NearestPeers(kb.ConvertKey(string(key)), count)
-	return closer
+	return closer, nil
 }
 
 // betterPeersToQuery returns nearestPeersToQuery with some additional filtering
 func (dht *IpfsDHT) betterPeersToQuery(pmes *pb.Message, from peer.ID, count int) []peer.ID {
-	closer := dht.nearestPeersToQuery(pmes, count)
+	closer, err := dht.nearestPeersToQuery(pmes, count)
+	if err != nil {
+		logger.Errorf("key decoding error: %w", err)
+		return nil
+	}
 
 	// no node? nil
 	if closer == nil {

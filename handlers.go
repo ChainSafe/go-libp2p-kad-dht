@@ -53,13 +53,13 @@ func (dht *IpfsDHT) handlerForMsgType(t pb.Message_MessageType) dhtHandler {
 
 func (dht *IpfsDHT) handleGetValue(ctx context.Context, p peer.ID, pmes *pb.Message) (_ *pb.Message, err error) {
 	// first, is there even a key?
-	k := pmes.GetKey()
+	k := pmes.GetKey().GetKey()
 	if len(k) == 0 {
 		return nil, errors.New("handleGetValue but no key was provided")
 	}
 
 	// setup response
-	resp := pb.NewMessage(pmes.GetType(), pmes.GetKey(), pmes.GetClusterLevel())
+	resp := pb.NewMessage(pmes.GetType(), k, pmes.GetClusterLevel())
 
 	rec, err := dht.checkLocalDatastore(ctx, k)
 	if err != nil {
@@ -149,7 +149,8 @@ func cleanRecord(rec *recpb.Record) {
 
 // Store a value in this peer local storage
 func (dht *IpfsDHT) handlePutValue(ctx context.Context, p peer.ID, pmes *pb.Message) (_ *pb.Message, err error) {
-	if len(pmes.GetKey()) == 0 {
+	key := pmes.GetKey().GetKey()
+	if len(key) == 0 {
 		return nil, errors.New("handleGetValue but no key was provided")
 	}
 
@@ -159,7 +160,7 @@ func (dht *IpfsDHT) handlePutValue(ctx context.Context, p peer.ID, pmes *pb.Mess
 		return nil, errors.New("nil record")
 	}
 
-	if !bytes.Equal(pmes.GetKey(), rec.GetKey()) {
+	if !bytes.Equal(key, rec.GetKey()) {
 		return nil, errors.New("put key doesn't match record key")
 	}
 
@@ -256,12 +257,13 @@ func (dht *IpfsDHT) handleFindPeer(ctx context.Context, from peer.ID, pmes *pb.M
 	resp := pb.NewMessage(pmes.GetType(), nil, pmes.GetClusterLevel())
 	var closest []peer.ID
 
-	if len(pmes.GetKey()) == 0 {
+	key := pmes.GetKey().GetKey()
+	if len(key) == 0 {
 		return nil, fmt.Errorf("handleFindPeer with empty key")
 	}
 
 	// if looking for self... special case where we send it on CloserPeers.
-	targetPid := peer.ID(pmes.GetKey())
+	targetPid := peer.ID(key)
 	if targetPid == dht.self {
 		closest = []peer.ID{dht.self}
 	} else {
@@ -307,21 +309,34 @@ func (dht *IpfsDHT) handleFindPeer(ctx context.Context, from peer.ID, pmes *pb.M
 }
 
 func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.Message) (_ *pb.Message, _err error) {
-	key := pmes.GetKey()
+	key := pmes.GetKey().GetKey()
+	prefixBitLength := pmes.GetKey().GetPrefixBitLength()
+
 	if len(key) > 80 {
 		return nil, fmt.Errorf("handleGetProviders key size too large")
 	} else if len(key) == 0 {
 		return nil, fmt.Errorf("handleGetProviders key is empty")
 	}
 
-	resp := pb.NewMessage(pmes.GetType(), pmes.GetKey(), pmes.GetClusterLevel())
+	resp := pb.NewMessage(pmes.GetType(), key, pmes.GetClusterLevel())
 
-	// setup providers
-	providers, err := dht.providerStore.GetProviders(ctx, key)
-	if err != nil {
-		return nil, err
+	if prefixBitLength != 0 {
+		// unlike providerStore.GetProviders(), this call
+		// also returns the keys that the peers provide.
+		provsToKeys, err := dht.providerStore.GetProvidersForPrefix(ctx, key, int(prefixBitLength))
+		if err != nil {
+			return nil, err
+		}
+
+		resp.ProviderPeers = pb.KeyToProvsToPB(dht.host.Network(), dht.peerstore, provsToKeys)
+	} else {
+		// setup providers
+		providers, err := dht.providerStore.GetProviders(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		resp.ProviderPeers = pb.PeersToPeersWithKey(pb.PeerInfosToPBPeers(dht.host.Network(), providers))
 	}
-	resp.ProviderPeers = pb.PeerInfosToPBPeers(dht.host.Network(), providers)
 
 	// Also send closer peers.
 	closer := dht.betterPeersToQuery(pmes, p, dht.bucketSize)
@@ -335,7 +350,7 @@ func (dht *IpfsDHT) handleGetProviders(ctx context.Context, p peer.ID, pmes *pb.
 }
 
 func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.Message) (_ *pb.Message, _err error) {
-	key := pmes.GetKey()
+	key := pmes.GetKey().GetKey()
 	if len(key) > 80 {
 		return nil, fmt.Errorf("handleAddProvider key size too large")
 	} else if len(key) == 0 {
@@ -345,7 +360,7 @@ func (dht *IpfsDHT) handleAddProvider(ctx context.Context, p peer.ID, pmes *pb.M
 	logger.Debugw("adding provider", "from", p, "key", internal.LoggableProviderRecordBytes(key))
 
 	// add provider should use the address given in the message
-	pinfos := pb.PBPeersToPeerInfos(pmes.GetProviderPeers())
+	pinfos := pb.PBPeersToAddrInfos(pmes.GetProviderPeers())
 	for _, pi := range pinfos {
 		if pi.ID != p {
 			// we should ignore this provider record! not from originator.

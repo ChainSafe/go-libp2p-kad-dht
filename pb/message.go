@@ -1,8 +1,11 @@
 package dht_pb
 
 import (
+	"bytes"
+
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 
 	logging "github.com/ipfs/go-log"
 	ma "github.com/multiformats/go-multiaddr"
@@ -19,7 +22,22 @@ type PeerRoutingInfo struct {
 func NewMessage(typ Message_MessageType, key []byte, level int) *Message {
 	m := &Message{
 		Type: typ,
-		Key:  key,
+		Key: &Message_Key{
+			Key: key,
+		},
+	}
+	m.SetClusterLevel(level)
+	return m
+}
+
+// NewGetProvidersMessage constructs a new dht message with given type, key, prefixBitLength and level
+func NewGetProvidersMessage(typ Message_MessageType, key []byte, prefixBitLength int, level int) *Message {
+	m := &Message{
+		Type: typ,
+		Key: &Message_Key{
+			Key:             key,
+			PrefixBitLength: uint32(prefixBitLength),
+		},
 	}
 	m.SetClusterLevel(level)
 	return m
@@ -56,6 +74,18 @@ func PBPeerToPeerInfo(pbp Message_Peer) peer.AddrInfo {
 	}
 }
 
+func PeersToPeersWithKey(in []Message_Peer) []Message_PeerWithKey {
+	pbpeers := make([]Message_PeerWithKey, len(in))
+	for i, p := range in {
+		pbpeers[i] = Message_PeerWithKey{
+			Id:         p.Id,
+			Addrs:      p.Addrs,
+			Connection: p.Connection,
+		}
+	}
+	return pbpeers
+}
+
 // RawPeerInfosToPBPeers converts a slice of Peers into a slice of *Message_Peers,
 // ready to go out on the wire.
 func RawPeerInfosToPBPeers(peers []peer.AddrInfo) []Message_Peer {
@@ -79,6 +109,90 @@ func PeerInfosToPBPeers(n network.Network, peers []peer.AddrInfo) []Message_Peer
 	return pbps
 }
 
+// PeerIDsToPBPeers converts given []peer.Peer into a set of []Message_Peer,
+// which can be written to a message and sent out. the key thing this function
+// does (in addition to PeersToPBPeers) is set the ConnectionType with
+// information from the given network.Network.
+func PeerIDsToPBPeers(n network.Network, ps peerstore.Peerstore, provs []peer.ID) []Message_Peer {
+	pbps := make([]Message_Peer, 0, len(provs))
+	for _, p := range provs {
+		if len(p) == 0 {
+			continue
+		}
+		addrInfo := ps.PeerInfo(p)
+		pbp := peerInfoToPBPeer(addrInfo)
+		c := ConnectionType(n.Connectedness(p))
+		pbp.Connection = c
+		pbps = append(pbps, pbp)
+	}
+	return pbps
+}
+
+func peerInfoToPBPeerWithKey(p peer.AddrInfo, key []byte) Message_PeerWithKey {
+	var pbp Message_PeerWithKey
+
+	pbp.Addrs = make([][]byte, len(p.Addrs))
+	for i, maddr := range p.Addrs {
+		pbp.Addrs[i] = maddr.Bytes() // Bytes, not String. Compressed.
+	}
+	pbp.Id = byteString(p.ID)
+	pbp.Key = key
+	return pbp
+}
+
+// KeyToProvsToPB converts a map of keys to list of peer IDs to a slice of Message_PeerWithKey.
+func KeyToProvsToPB(n network.Network, ps peerstore.Peerstore, keyToProvs map[string][]peer.ID) []Message_PeerWithKey {
+	res := []Message_PeerWithKey{}
+
+	for key, peers := range keyToProvs {
+		for _, p := range peers {
+			addrInfo := ps.PeerInfo(p)
+			pbp := peerInfoToPBPeerWithKey(addrInfo, []byte(key))
+			c := ConnectionType(n.Connectedness(p))
+			pbp.Connection = c
+			res = append(res, pbp)
+		}
+	}
+
+	return res
+}
+
+// PBPeersToAddrInfos converts list of Message_PeerWithKey to a list of peer.AddrInfo.
+func PBPeersToAddrInfos(pbm []Message_PeerWithKey) []*peer.AddrInfo {
+	res := []*peer.AddrInfo{}
+
+	for _, mp := range pbm {
+		addrInfo := PBPeerToPeerInfo(Message_Peer{
+			Id:         mp.Id,
+			Addrs:      mp.Addrs,
+			Connection: mp.Connection,
+		})
+		res = append(res, &addrInfo)
+	}
+
+	return res
+}
+
+// PBPeersToAddrInfos converts list of Message_PeerWithKey to a list of peer.AddrInfo that have the given key.
+func PBPeersWithKeyToAddrInfos(pbm []Message_PeerWithKey, key []byte) []*peer.AddrInfo {
+	res := []*peer.AddrInfo{}
+
+	for _, mp := range pbm {
+		if !bytes.Equal(mp.Key, key) {
+			continue
+		}
+
+		addrInfo := PBPeerToPeerInfo(Message_Peer{
+			Id:         mp.Id,
+			Addrs:      mp.Addrs,
+			Connection: mp.Connection,
+		})
+		res = append(res, &addrInfo)
+	}
+
+	return res
+}
+
 func PeerRoutingInfosToPBPeers(peers []PeerRoutingInfo) []Message_Peer {
 	pbpeers := make([]Message_Peer, len(peers))
 	for i, p := range peers {
@@ -87,7 +201,7 @@ func PeerRoutingInfosToPBPeers(peers []PeerRoutingInfo) []Message_Peer {
 	return pbpeers
 }
 
-// PBPeersToPeerInfos converts given []*Message_Peer into []peer.AddrInfo
+// PBPeersToPeerInfos converts given []*Message_Peer into []*peer.AddrInfo
 // Invalid addresses will be silently omitted.
 func PBPeersToPeerInfos(pbps []Message_Peer) []*peer.AddrInfo {
 	peers := make([]*peer.AddrInfo, 0, len(pbps))

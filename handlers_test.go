@@ -125,7 +125,9 @@ func BenchmarkHandleFindPeer(b *testing.B) {
 	var reqs []*pb.Message
 	for i := 0; i < b.N; i++ {
 		reqs = append(reqs, &pb.Message{
-			Key: []byte("asdasdasd"),
+			Key: &pb.Message_Key{
+				Key: []byte("asdasdasd"),
+			},
 		})
 	}
 	b.ReportAllocs()
