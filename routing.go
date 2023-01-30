@@ -563,8 +563,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 	// note: extra bits are added b/c of the multihash code + digest length
 	lookupKey := internal.PrefixByBits(mhHash, prefixLength+extraBitLength)
 
-	logger.Infof("findProvidersAsyncRoutine mhHash=%s prefixLength=%d key=%x len=%d", mhHash, prefixLength, lookupKey, len(lookupKey))
-
 	runLookupWithFollowupCalls := 0
 	lookupRes, err := dht.runLookupWithFollowup(ctx, string(mhHash),
 		func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
@@ -591,7 +589,6 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 			}
 
 			logger.Debugf("found %d keys with prefix", len(provs))
-			logger.Infof("findProvidersAsync provsCount=%d closerCount=%d", len(provs), len(closer))
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
@@ -609,16 +606,14 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 				logger.Debugf("got provider: %s", prov)
 
 				if psTryAdd(prov.ID) {
-					logger.Debugf("using provider: %s key %s", prov, key)
 					select {
 					case peerOut <- *prov:
 					case <-ctx.Done():
-						logger.Error("context timed out sending more providers")
+						logger.Debugf("context timed out sending more providers")
 						return nil, ctx.Err()
 					}
 				}
 				if !findAll && psSize() >= count {
-					logger.Infof("got enough providers (%d/%d)", psSize(), count)
 					return nil, nil
 				}
 			}
