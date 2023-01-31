@@ -376,13 +376,20 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 	} else if !key.Defined() {
 		return fmt.Errorf("invalid cid: undefined")
 	}
+
 	keyMH := key.Hash()
+
 	// hash multihash for double-hashing implementation
 	mhHash, _ := internal.Sha256Multihash(keyMH)
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
-	// add self locally
-	err = dht.providerStore.AddProvider(ctx, mhHash, peer.AddrInfo{ID: dht.self})
+	ct, err := encryptAES([]byte(dht.self), multihashToKey(keyMH))
+	if err != nil {
+		return err
+	}
+
+	// add (encrypted) self locally
+	err = dht.providerStore.AddProvider(ctx, mhHash, peer.ID(ct))
 	if err != nil {
 		return err
 	}
@@ -433,12 +440,13 @@ func (dht *IpfsDHT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err 
 		go func(p peer.ID) {
 			defer wg.Done()
 			logger.Debugf("putProvider(%s, %s)", internal.LoggableProviderRecordBytes(mhHash[:]), p)
-			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host)
+			err := dht.protoMessenger.PutProvider(ctx, p, mhHash[:], dht.host, []byte(ct))
 			if err != nil {
 				logger.Debug(err)
 			}
 		}(p)
 	}
+
 	wg.Wait()
 	if exceededDeadline {
 		return context.DeadlineExceeded
@@ -521,11 +529,25 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 		return
 	}
 
+	decKey := multihashToKey(key)
 	for _, p := range provs {
+		logger.Infof("got provider from local store: %x", p)
+		// decrypt peer record if needed
+		if len(p) == encryptedPeerIDLength {
+			ptPeer, err := decryptAES([]byte(p), decKey)
+			if err != nil {
+				logger.Errorf("failed to decrypt encrypted peer ID: %s", err)
+				// TODO: remove from provider store, since it's a bad record
+				continue
+			}
+			p = peer.ID(ptPeer)
+		}
+
 		// NOTE: Assuming that this list of peers is unique
-		if psTryAdd(p.ID) {
+		if psTryAdd(p) {
+			addrInfo := dht.peerstore.PeerInfo(p)
 			select {
-			case peerOut <- p:
+			case peerOut <- addrInfo:
 			case <-ctx.Done():
 				return
 			}
@@ -570,6 +592,16 @@ func (dht *IpfsDHT) findProvidersAsyncRoutine(ctx context.Context, key multihash
 
 			// Add unique providers from request, up to 'count'
 			for _, prov := range provs {
+				// decrypt peer record if needed
+				if len(prov.ID) == encryptedPeerIDLength {
+					ptPeer, err := decryptAES([]byte(prov.ID), decKey)
+					if err != nil {
+						logger.Errorf("failed to decrypt encrypted peer ID: %s", err)
+						continue
+					}
+					prov.ID = peer.ID(ptPeer)
+				}
+
 				dht.maybeAddAddrs(prov.ID, prov.Addrs, peerstore.TempAddrTTL)
 				logger.Debugf("got provider: %s", prov)
 

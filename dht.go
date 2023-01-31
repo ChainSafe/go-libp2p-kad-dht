@@ -356,7 +356,7 @@ func makeDHT(ctx context.Context, h host.Host, cfg dhtcfg.Config) (*IpfsDHT, err
 	if cfg.ProviderStore != nil {
 		dht.providerStore = cfg.ProviderStore
 	} else {
-		dht.providerStore, err = providers.NewProviderManager(dht.ctx, h.ID(), h.Peerstore(), cfg.Datastore)
+		dht.providerStore, err = providers.NewProviderManager(dht.ctx, h.ID(), cfg.Datastore)
 		if err != nil {
 			return nil, fmt.Errorf("initializing default provider manager (%v)", err)
 		}

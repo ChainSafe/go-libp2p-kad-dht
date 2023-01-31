@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
-	peerstoreImpl "github.com/libp2p/go-libp2p/p2p/host/peerstore"
 
 	lru "github.com/hashicorp/golang-lru/simplelru"
 	ds "github.com/ipfs/go-datastore"
@@ -36,8 +34,8 @@ var log = logging.Logger("providers")
 
 // ProviderStore represents a store that associates peers and their addresses to keys.
 type ProviderStore interface {
-	AddProvider(ctx context.Context, key []byte, prov peer.AddrInfo) error
-	GetProviders(ctx context.Context, key []byte) ([]peer.AddrInfo, error)
+	AddProvider(ctx context.Context, key []byte, prov peer.ID) error
+	GetProviders(ctx context.Context, key []byte) ([]peer.ID, error)
 	GetProvidersForPrefix(ctx context.Context, key []byte, prefixBitLength int) (map[string][]peer.ID, error)
 }
 
@@ -48,7 +46,6 @@ type ProviderManager struct {
 	// all non channel fields are meant to be accessed only within
 	// the run method
 	cache  lru.LRUCache
-	pstore peerstore.Peerstore
 	dstore *autobatch.Datastore
 
 	newprovs         chan *addProv
@@ -111,13 +108,12 @@ type getProvByPrefix struct {
 }
 
 // NewProviderManager constructor
-func NewProviderManager(ctx context.Context, local peer.ID, ps peerstore.Peerstore, dstore ds.Batching, opts ...Option) (*ProviderManager, error) {
+func NewProviderManager(ctx context.Context, local peer.ID, dstore ds.Batching, opts ...Option) (*ProviderManager, error) {
 	pm := new(ProviderManager)
 	pm.self = local
 	pm.getprovs = make(chan *getProv)
 	pm.getProvsByPrefix = make(chan *getProvByPrefix)
 	pm.newprovs = make(chan *addProv)
-	pm.pstore = ps
 	pm.dstore = autobatch.NewAutoBatching(dstore, batchBufferSize)
 	cache, err := lru.NewLRU(lruCacheSize, nil)
 	if err != nil {
@@ -253,14 +249,11 @@ func (pm *ProviderManager) run(ctx context.Context, proc goprocess.Process) {
 }
 
 // AddProvider adds a provider
-func (pm *ProviderManager) AddProvider(ctx context.Context, k []byte, provInfo peer.AddrInfo) error {
-	if provInfo.ID != pm.self { // don't add own addrs.
-		pm.pstore.AddAddrs(provInfo.ID, provInfo.Addrs, peerstore.ProviderAddrTTL)
-	}
+func (pm *ProviderManager) AddProvider(ctx context.Context, k []byte, provInfo peer.ID) error {
 	prov := &addProv{
 		ctx: ctx,
 		key: k,
-		val: provInfo.ID,
+		val: provInfo,
 	}
 	select {
 	case pm.newprovs <- prov:
@@ -300,7 +293,7 @@ func mkProvKey(k []byte) string {
 
 // GetProviders returns the set of providers for the given key.
 // This method _does not_ copy the set. Do not modify it.
-func (pm *ProviderManager) GetProviders(ctx context.Context, k []byte) ([]peer.AddrInfo, error) {
+func (pm *ProviderManager) GetProviders(ctx context.Context, k []byte) ([]peer.ID, error) {
 	gp := &getProv{
 		ctx:  ctx,
 		key:  k,
@@ -315,7 +308,7 @@ func (pm *ProviderManager) GetProviders(ctx context.Context, k []byte) ([]peer.A
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case peers := <-gp.resp:
-		return peerstoreImpl.PeerInfos(pm.pstore, peers), nil
+		return peers, nil
 	}
 }
 
@@ -421,7 +414,9 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 	prefixKey := mkProvKey(k[:len(k)-1])
 
 	q := dsq.Query{
-		Filters: []dsq.Filter{dsq.FilterKeyPrefix{prefixKey}},
+		Filters: []dsq.Filter{
+			dsq.FilterKeyPrefix{Prefix: prefixKey},
+		},
 	}
 
 	res, err := dstore.Query(ctx, q)

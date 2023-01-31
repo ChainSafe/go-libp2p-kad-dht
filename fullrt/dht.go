@@ -143,7 +143,7 @@ func NewFullRT(h host.Host, protocolPrefix protocol.ID, options ...Option) (*Ful
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	pm, err := providers.NewProviderManager(ctx, h.ID(), h.Peerstore(), dhtcfg.Datastore)
+	pm, err := providers.NewProviderManager(ctx, h.ID(), dhtcfg.Datastore)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -781,7 +781,7 @@ func (dht *FullRT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err e
 	logger.Debugw("providing", "cid", key, "mh", internal.LoggableProviderRecordBytes(keyMH), "mhHash", mhHash)
 
 	// add self locally
-	err = dht.ProviderManager.AddProvider(ctx, mhHash, peer.AddrInfo{ID: dht.h.ID()})
+	err = dht.ProviderManager.AddProvider(ctx, mhHash, dht.h.ID())
 	if err != nil {
 		return err
 	}
@@ -827,7 +827,7 @@ func (dht *FullRT) Provide(ctx context.Context, key cid.Cid, brdcst bool) (err e
 	}
 
 	successes := dht.execOnMany(ctx, func(ctx context.Context, p peer.ID) error {
-		err := dht.protoMessenger.PutProvider(ctx, p, keyMH, dht.h)
+		err := dht.protoMessenger.PutProvider(ctx, p, keyMH, dht.h, []byte(dht.h.ID()))
 		return err
 	}, peers, true)
 
@@ -1251,9 +1251,10 @@ func (dht *FullRT) findProvidersAsyncRoutine(ctx context.Context, key multihash.
 	}
 	for _, p := range provs {
 		// NOTE: Assuming that this list of peers is unique
-		if psTryAdd(p.ID) {
+		addrInfo := dht.h.Peerstore().PeerInfo(p)
+		if psTryAdd(p) {
 			select {
-			case peerOut <- p:
+			case peerOut <- addrInfo:
 			case <-ctx.Done():
 				return
 			}

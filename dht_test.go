@@ -518,7 +518,7 @@ func TestValueGetInvalid(t *testing.T) {
 	testSetGet("valid", "newer", nil)
 }
 
-func TestProvides(t *testing.T) {
+func TestProvides_Small(t *testing.T) {
 	// t.Skip("skipping test to debug another")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -919,7 +919,7 @@ func TestProvidesMany(t *testing.T) {
 	}
 
 	// what is this timeout for? was 60ms before.
-	time.Sleep(time.Millisecond * 6)
+	time.Sleep(time.Second)
 
 	errchan := make(chan error)
 
@@ -1037,13 +1037,14 @@ func TestProvides_PrefixLookup(t *testing.T) {
 		}
 	}
 
-	time.Sleep(time.Millisecond * 6)
+	time.Sleep(time.Second)
 
 	n := 0
-	for _, c := range testCaseCids {
+	for i, c := range testCaseCids {
+		t.Log("searching for cid", c, i)
 		n = (n + 1) % 3
 
-		logger.Debugf("getting providers for %s from %d", c, n)
+		t.Logf("getting providers for %s from %d", c, n)
 		ctxT, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		dhts[n].prefixLength = 16 // half the hashed CID for now
@@ -1349,7 +1350,7 @@ func TestClientModeConnect(t *testing.T) {
 	c := testCaseCids[0]
 	p := peer.ID("TestPeer")
 	mhHash, _ := internal.Sha256Multihash(c.Hash())
-	err := a.ProviderStore().AddProvider(ctx, mhHash[:], peer.AddrInfo{ID: p})
+	err := a.ProviderStore().AddProvider(ctx, mhHash[:], p)
 	if err != nil {
 		t.Fatal(err)
 	}

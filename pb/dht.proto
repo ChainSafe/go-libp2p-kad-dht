@@ -8,6 +8,7 @@
 syntax = "proto3";
 package dht.pb;
 
+import "github.com/libp2p/go-libp2p/core/crypto/pb/crypto.proto";
 import "github.com/libp2p/go-libp2p-record/pb/record.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
@@ -87,5 +88,11 @@ message Message {
 
 		// key provided by peer; only set for GET_PROVIDER prefix lookups
 		bytes key = 4;
+
+		// signature of the provided key + encrypted peer ID for ADD_PROVIDER messages
+		bytes signature = 5;
+
+		// public key of the peer for ADD_PROVIDER messages
+		crypto.pb.PublicKey publicKey = 6;
 	}
 }

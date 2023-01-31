@@ -11,4 +11,3 @@ build:
 
 clean:
 		rm -f *.pb.go
-		rm -f *.go
