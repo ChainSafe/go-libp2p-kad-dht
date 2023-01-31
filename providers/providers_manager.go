@@ -414,7 +414,9 @@ func loadProviderSetByPrefix(ctx context.Context, dstore ds.Datastore, k []byte,
 	prefixKey := mkProvKey(k[:len(k)-1])
 
 	q := dsq.Query{
-		Filters: []dsq.Filter{dsq.FilterKeyPrefix{prefixKey}},
+		Filters: []dsq.Filter{
+			dsq.FilterKeyPrefix{Prefix: prefixKey},
+		},
 	}
 
 	res, err := dstore.Query(ctx, q)

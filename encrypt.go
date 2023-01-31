@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	nonceSize             = 12
 	keySize               = 32
 	encryptedPeerIDLength = 66
 )
@@ -24,7 +23,7 @@ func encryptAES(plaintext, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	nonce := make([]byte, nonceSize)
+	nonce := make([]byte, aesgcm.NonceSize())
 	_, err = rand.Read(nonce)
 	if err != nil {
 		return nil, err
@@ -35,15 +34,13 @@ func encryptAES(plaintext, key []byte) ([]byte, error) {
 }
 
 func decryptAES(nonceAndCT, key []byte) ([]byte, error) {
-	return decryptAESInner(nonceAndCT[:nonceSize], nonceAndCT[nonceSize:], key)
-}
-
-func decryptAESInner(nonce, ciphertext, key []byte) ([]byte, error) {
 	aesgcm, err := newAESGCM(key)
 	if err != nil {
 		return nil, err
 	}
 
+	nonce := nonceAndCT[:aesgcm.NonceSize()]
+	ciphertext := nonceAndCT[aesgcm.NonceSize():]
 	plaintext, err := aesgcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, err
