@@ -280,7 +280,7 @@ func (dht *DHT) StoreRecord(ctx context.Context, key string, rec *pb.Record) err
 			return err
 		}
 
-		peerAddrBook := make([]peer.AddrInfo, len(peers))
+		peerAddrBook := make([]peer.AddrInfo, 0, len(peers))
 		for _, id := range peers {
 			peerAddr, err := dht.WAN.FindPeer(ctx, id)
 			if err != nil {
