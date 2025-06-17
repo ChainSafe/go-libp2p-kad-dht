@@ -585,6 +585,8 @@ func (dht *IpfsDHT) getLocal(ctx context.Context, key string) (*recpb.Record, er
 		return nil, err
 	}
 
+	fmt.Printf("%+v\n", rec)
+
 	// Double check the key. Can't hurt.
 	if rec != nil && string(rec.GetKey()) != key {
 		logger.Errorw("BUG: found a DHT record that didn't match it's key", "expected", internal.LoggableRecordKeyString(key), "got", rec.GetKey())
