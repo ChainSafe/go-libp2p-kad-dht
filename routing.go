@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	recpb "github.com/libp2p/go-libp2p-record/pb"
 	"sync"
 	"time"
 
@@ -101,6 +102,12 @@ func (dht *IpfsDHT) PutValue(ctx context.Context, key string, value []byte, opts
 type recvdVal struct {
 	Val  []byte
 	From peer.ID
+}
+
+// recVal stores a record and the peer from which we got the value.
+type recVal struct {
+	Record *recpb.Record
+	From   peer.ID
 }
 
 // GetValue searches for the value corresponding to given Key.
@@ -368,6 +375,95 @@ func (dht *IpfsDHT) getValues(ctx context.Context, key string, stopQuery chan st
 	}()
 
 	return valCh, lookupResCh
+}
+
+func (dht *IpfsDHT) getRecord(ctx context.Context, key string, stopQuery chan struct{}) (<-chan recVal, <-chan *lookupWithFollowupResult) {
+	recCh := make(chan recVal, 1)
+	lookupResCh := make(chan *lookupWithFollowupResult, 1)
+
+	logger.Debugw("finding value", "key", internal.LoggableRecordKeyString(key))
+
+	if rec, err := dht.getLocal(ctx, key); rec != nil && err == nil {
+		select {
+		case recCh <- recVal{
+			Record: rec,
+			From:   dht.self,
+		}:
+		case <-ctx.Done():
+		}
+	}
+
+	go func() {
+		defer close(recCh)
+		defer close(lookupResCh)
+		lookupRes, err := dht.runLookupWithFollowup(ctx, key,
+			func(ctx context.Context, p peer.ID) ([]*peer.AddrInfo, error) {
+				// For DHT query command
+				routing.PublishQueryEvent(ctx, &routing.QueryEvent{
+					Type: routing.SendingQuery,
+					ID:   p,
+				})
+
+				rec, peers, err := dht.protoMessenger.GetValue(ctx, p, key)
+				if err != nil {
+					logger.Debugf("error getting closer peers: %s", err)
+					return nil, err
+				}
+
+				// For DHT query command
+				routing.PublishQueryEvent(ctx, &routing.QueryEvent{
+					Type:      routing.PeerResponse,
+					ID:        p,
+					Responses: peers,
+				})
+
+				if rec == nil {
+					return peers, nil
+				}
+
+				val := rec.GetValue()
+				if val == nil {
+					logger.Debug("received a nil record value")
+					return peers, nil
+				}
+				if err := dht.Validator.Validate(key, val); err != nil {
+					// make sure record is valid
+					logger.Debugw("received invalid record (discarded)", "error", err)
+					return peers, nil
+				}
+
+				// the record is present and valid, send it out for processing
+				select {
+				case recCh <- recVal{
+					Record: rec,
+					From:   p,
+				}:
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+
+				return peers, nil
+			},
+			func(*qpeerset.QueryPeerset) bool {
+				select {
+				case <-stopQuery:
+					return true
+				default:
+					return false
+				}
+			},
+		)
+		if err != nil {
+			return
+		}
+		lookupResCh <- lookupRes
+
+		if ctx.Err() == nil {
+			dht.refreshRTIfNoShortcut(kb.ConvertKey(key), lookupRes)
+		}
+	}()
+
+	return recCh, lookupResCh
 }
 
 func (dht *IpfsDHT) refreshRTIfNoShortcut(key kb.ID, lookupRes *lookupWithFollowupResult) {
@@ -676,7 +772,7 @@ func (dht *IpfsDHT) FindPeer(ctx context.Context, id peer.ID) (pi peer.AddrInfo,
 			// Note: we consider PeerUnreachable to be a valid state because the peer may not support the DHT protocol
 			// and therefore the peer would fail the query. The fact that a peer that is returned can be a non-DHT
 			// server peer and is not identified as such is a bug.
-			dialedPeerDuringQuery = (lookupRes.state[i] == qpeerset.PeerQueried || lookupRes.state[i] == qpeerset.PeerUnreachable || lookupRes.state[i] == qpeerset.PeerWaiting)
+			dialedPeerDuringQuery = lookupRes.state[i] == qpeerset.PeerQueried || lookupRes.state[i] == qpeerset.PeerUnreachable || lookupRes.state[i] == qpeerset.PeerWaiting
 			break
 		}
 	}

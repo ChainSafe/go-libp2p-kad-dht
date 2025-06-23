@@ -585,8 +585,6 @@ func (dht *IpfsDHT) getLocal(ctx context.Context, key string) (*recpb.Record, er
 		return nil, err
 	}
 
-	fmt.Printf("%+v\n", rec)
-
 	// Double check the key. Can't hurt.
 	if rec != nil && string(rec.GetKey()) != key {
 		logger.Errorw("BUG: found a DHT record that didn't match it's key", "expected", internal.LoggableRecordKeyString(key), "got", rec.GetKey())
@@ -622,6 +620,13 @@ func (dht *IpfsDHT) PutRecordAtPeer(ctx context.Context, rec *recpb.Record, peer
 	}
 
 	return nil
+}
+
+func (dht *IpfsDHT) GetRecord(ctx context.Context, key string) (*recpb.Record, error) {
+	stopCh := make(chan struct{})
+	recCh, _ := dht.getRecord(ctx, key, stopCh)
+	rec := <-recCh
+	return rec.Record, nil
 }
 
 func (dht *IpfsDHT) rtPeerLoop() {
