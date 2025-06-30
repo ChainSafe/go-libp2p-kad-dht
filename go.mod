@@ -139,3 +139,5 @@ require (
 retract v0.29.2 // this includes a breaking change and should have been released as v0.30.0
 
 retract v0.24.3 // this includes a breaking change and should have been released as v0.25.0
+
+replace github.com/libp2p/go-libp2p-record => github.com/ChainSafe/go-libp2p-record v0.0.0-20250630175009-fe254df36b1c
