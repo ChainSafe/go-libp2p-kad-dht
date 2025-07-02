@@ -26,6 +26,8 @@ func (dht *IpfsDHT) startNetworkSubscriber() error {
 
 		// we want to know when we are disconnecting from other peers.
 		new(event.EvtPeerConnectednessChanged),
+
+		new(EvtRecordPut),
 	}
 
 	// register for event bus local routability changes in order to trigger switching between client and server modes
@@ -76,6 +78,8 @@ func (dht *IpfsDHT) startNetworkSubscriber() error {
 						// something has gone really wrong if we get an event we did not subscribe to
 						logger.Errorf("received LocalReachabilityChanged event that was not subscribed to")
 					}
+				case EvtRecordPut:
+					fmt.Printf("[Record Event] %s Record stored %s at %s\n", evt.Timestamp, evt.Record, evt.Target)
 				default:
 					// something has gone really wrong if we get an event for another type
 					logger.Errorf("got wrong type from subscription: %T", e)

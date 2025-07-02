@@ -3,7 +3,9 @@ package dht
 import (
 	"context"
 	"encoding/json"
+	recpb "github.com/libp2p/go-libp2p-record/pb"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -244,4 +246,11 @@ func PublishLookupEvent(ctx context.Context, ev *LookupEvent) {
 	// We *want* to panic here.
 	ech := ich.(*lookupEventChannel)
 	ech.send(ctx, ev)
+}
+
+// EvtRecordPut is the event emitted when a record has been stored in DHT
+type EvtRecordPut struct {
+	Record    *recpb.Record
+	Target    []peer.ID
+	Timestamp time.Time
 }
