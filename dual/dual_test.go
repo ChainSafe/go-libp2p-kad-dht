@@ -2,6 +2,8 @@ package dual
 
 import (
 	"context"
+	recpb "github.com/libp2p/go-libp2p-record/pb"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -273,6 +275,38 @@ func TestValueGetSet(t *testing.T) {
 	if err == nil {
 		t.Fatal(err)
 	}
+}
+
+func TestStoreRecord(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	d, wan, lan := setupTier(ctx, t)
+	defer d.Close()
+	defer wan.Close()
+	defer lan.Close()
+
+	time.Sleep(5 * time.Millisecond)
+
+	actual := new(recpb.Record)
+	actual.Key = []byte("/v/key")
+	actual.Value = []byte("value")
+	actual.Publisher = []byte("publisher")
+	actual.Ttl = 1
+
+	err := d.StoreRecord(ctx, string(actual.Key), actual)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wanRec, err := wan.GetRecord(ctx, string(actual.Key))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	assert.EqualValues(t, actual.Key, wanRec.Key)
+	assert.EqualValues(t, actual.Value, wanRec.Value)
+	assert.EqualValues(t, actual.Publisher, wanRec.Publisher)
 }
 
 func TestSearchValue(t *testing.T) {

@@ -605,6 +605,30 @@ func (dht *IpfsDHT) putLocal(ctx context.Context, key string, rec *recpb.Record)
 	return dht.datastore.Put(ctx, mkDsKey(key), data)
 }
 
+// StoreRecord stores a record in the DHT locally
+func (dht *IpfsDHT) StoreRecord(ctx context.Context, key string, rec *recpb.Record) error {
+	return dht.putLocal(ctx, key, rec)
+}
+
+// PutRecordAtPeer stores a record at specific peers
+func (dht *IpfsDHT) PutRecordAtPeer(ctx context.Context, rec *recpb.Record, peers []peer.AddrInfo) error {
+	for _, p := range peers {
+		err := dht.protoMessenger.PutValue(ctx, p.ID, rec)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (dht *IpfsDHT) GetRecord(ctx context.Context, key string) (*recpb.Record, error) {
+	stopCh := make(chan struct{})
+	recCh, _ := dht.getRecord(ctx, key, stopCh)
+	rec := <-recCh
+	return rec.Record, nil
+}
+
 func (dht *IpfsDHT) rtPeerLoop() {
 	dht.wg.Add(1)
 	go func() {
