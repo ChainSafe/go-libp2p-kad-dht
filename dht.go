@@ -619,6 +619,27 @@ func (dht *IpfsDHT) PutRecordAtPeer(ctx context.Context, rec *recpb.Record, peer
 		}
 	}
 
+	// emit the event
+	emitter, err := dht.Host().EventBus().Emitter(new(EvtRecordPut))
+	if err != nil {
+		return err
+	}
+
+	peerIDs := make([]peer.ID, len(peers))
+	for i, p := range peers {
+		peerIDs[i] = p.ID
+	}
+
+	err = emitter.Emit(EvtRecordPut{
+		Record:    rec,
+		Target:    peerIDs,
+		Timestamp: time.Now(),
+	})
+	if err != nil {
+		return err
+	}
+	defer emitter.Close()
+
 	return nil
 }
 
