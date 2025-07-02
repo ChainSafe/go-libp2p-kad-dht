@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	recpb "github.com/libp2p/go-libp2p-record/pb"
 	"math/rand"
 	"runtime"
 	"sort"
@@ -412,6 +413,61 @@ func TestContextShutDown(t *testing.T) {
 	case <-dht.Context().Done():
 	default:
 		t.Fatal("context should be done")
+	}
+}
+
+func TestGetRecord(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	dhtA := setupDHT(ctx, t, false)
+	dhtB := setupDHT(ctx, t, false)
+
+	defer dhtA.Close()
+	defer dhtB.Close()
+	defer dhtA.host.Close()
+	defer dhtB.host.Close()
+
+	connect(t, ctx, dhtA, dhtB)
+
+	dhtA.Validator.(record.NamespacedValidator)["v"] = test.TestValidator{}
+	dhtB.Validator.(record.NamespacedValidator)["v"] = test.TestValidator{}
+
+	ctxT, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	actual := new(recpb.Record)
+	actual.Key = []byte("/v/key")
+	actual.Value = []byte("value")
+	actual.Publisher = []byte("publisher")
+	actual.Ttl = 1
+
+	peers, err := dhtA.GetClosestPeers(ctx, string(actual.Key))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	peerInfo := make([]peer.AddrInfo, len(peers))
+	for i, p := range peers {
+		peerInfo[i] = peer.AddrInfo{
+			ID: p,
+		}
+	}
+
+	err = dhtA.PutRecordAtPeer(ctx, actual, peerInfo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gotChen, _ := dhtA.getRecord(ctxT, string(actual.Key), make(chan struct{}))
+
+	select {
+	case got := <-gotChen:
+		assert.EqualValues(t, actual.Key, got.Record.Key)
+		assert.EqualValues(t, actual.Value, got.Record.Value)
+		assert.EqualValues(t, actual.Publisher, got.Record.Publisher)
+	case <-ctxT.Done():
+		t.Fatal(ctxT.Err())
 	}
 }
 
